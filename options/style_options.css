@@ -1,0 +1,299 @@
+/* options/styles_options.css */
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: #f0f2f5; /* Un gris más claro para el fondo general */
+    color: #333;
+    display: flex;
+    justify-content: center;
+    min-height: 100vh;
+}
+
+.options-container {
+    width: 100%;
+    max-width: 800px; /* Ancho máximo para la página de opciones */
+    background-color: #ffffff;
+    margin: 20px;
+    padding: 25px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.options-header {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid #e0e0e0;
+    margin-bottom: 20px;
+}
+
+.logo {
+    width: 40px;
+    height: 40px;
+}
+
+.options-header h1 {
+    font-size: 1.8em;
+    margin: 0;
+    color: #005a9c; /* Consistente con el popup */
+}
+
+.tabs {
+    display: flex;
+    margin-bottom: 20px;
+    border-bottom: 1px solid #d1d9e0;
+}
+
+.tab-button {
+    padding: 12px 20px;
+    cursor: pointer;
+    border: none;
+    background-color: transparent;
+    font-size: 1em;
+    color: #555;
+    border-bottom: 3px solid transparent;
+    transition: color 0.2s ease, border-bottom-color 0.2s ease;
+}
+
+.tab-button:hover {
+    color: #007bff;
+}
+
+.tab-button.active {
+    color: #007bff;
+    border-bottom-color: #007bff;
+    font-weight: 600;
+}
+
+.tab-content {
+    display: none;
+    padding: 15px 0;
+    animation: fadeIn 0.5s;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+h2 {
+    font-size: 1.5em;
+    color: #333;
+    margin-top: 0;
+    margin-bottom: 20px;
+    border-bottom: 1px dashed #eee;
+    padding-bottom: 10px;
+}
+
+h3 {
+    font-size: 1.2em;
+    color: #444;
+    margin-top: 20px;
+    margin-bottom: 10px;
+}
+
+.connection-module, .template-list-container, .sharing-actions {
+    background-color: #f9f9f9;
+    padding: 20px;
+    border-radius: 6px;
+    border: 1px solid #e7e7e7;
+    margin-bottom: 20px;
+}
+
+#notion-status p {
+    margin: 5px 0;
+    font-size: 0.95em;
+}
+
+#notion-connection-status {
+    font-weight: bold;
+    padding: 3px 6px;
+    border-radius: 4px;
+}
+.status-connected { color: #28a745; background-color: #e9f5ec; }
+.status-disconnected { color: #dc3545; background-color: #fbe9ea; }
+.status-error { color: #dc3545; background-color: #fbe9ea; }
+.status-processing { color: #007bff; background-color: #e6f2ff;}
+.status-success { color: #28a745; background-color: #e9f5ec; }
+
+
+.info-text {
+    font-size: 0.85em;
+    color: #666;
+    margin-top: 10px;
+}
+
+/* Botones */
+.btn {
+    padding: 10px 18px;
+    border: none;
+    border-radius: 5px;
+    font-size: 0.95em;
+    cursor: pointer;
+    transition: background-color 0.2s ease, box-shadow 0.2s ease;
+    margin-right: 10px;
+}
+.btn:last-child {
+    margin-right: 0;
+}
+
+.btn-primary { background-color: #007bff; color: white; }
+.btn-primary:hover { background-color: #0056b3; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+
+.btn-secondary { background-color: #6c757d; color: white; }
+.btn-secondary:hover { background-color: #545b62; }
+
+.btn-success { background-color: #28a745; color: white; }
+.btn-success:hover { background-color: #1e7e34; }
+
+.btn-danger { background-color: #dc3545; color: white; }
+.btn-danger:hover { background-color: #b02a37; }
+
+.btn-link { background-color: transparent; color: #007bff; text-decoration: underline; padding: 5px; font-size: 0.9em;}
+.btn-link:hover { color: #0056b3; }
+
+.btn-small { padding: 6px 12px; font-size: 0.85em; }
+
+/* Formularios y Editor de Plantillas */
+#template-form div, .form-group {
+    margin-bottom: 15px;
+}
+#template-form label, .form-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: 600;
+    font-size: 0.9em;
+    color: #495057;
+}
+#template-form input[type="text"],
+#template-form select,
+.form-group input[type="text"],
+.form-group select {
+    width: calc(100% - 22px); /* Ajustar por padding y borde */
+    padding: 10px;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    font-size: 0.95em;
+    box-sizing: border-box;
+}
+#template-form input[type="text"]:focus,
+#template-form select:focus {
+    border-color: #80bdff;
+    outline: 0;
+    box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25);
+}
+
+.field-mappings-container {
+    border: 1px solid #e0e0e0;
+    padding: 15px;
+    border-radius: 5px;
+    background-color: #fdfdfd;
+}
+.field-mapping-item {
+    padding: 15px;
+    margin-bottom: 15px;
+    border: 1px dashed #ccc;
+    border-radius: 4px;
+    background-color: #fff;
+}
+.field-mapping-item hr {
+    border: 0;
+    border-top: 1px solid #eee;
+    margin-top: 15px;
+}
+.field-mapping-item:last-child hr {
+    display: none;
+}
+.remove-field-mapping-button {
+    margin-top: 10px;
+}
+
+.form-actions {
+    margin-top: 20px;
+    padding-top: 15px;
+    border-top: 1px solid #eee;
+    text-align: right;
+}
+
+/* Modal */
+.modal {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+.modal-content {
+    background-color: white;
+    padding: 25px;
+    border-radius: 8px;
+    width: 90%;
+    max-width: 600px;
+    max-height: 80vh;
+    overflow-y: auto;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+    position: relative;
+}
+.close-button {
+    position: absolute;
+    top: 15px;
+    right: 20px;
+    font-size: 1.8em;
+    font-weight: bold;
+    cursor: pointer;
+    color: #aaa;
+}
+.close-button:hover {
+    color: #333;
+}
+
+/* Lista de Plantillas */
+.template-list {
+    list-style: none;
+    padding: 0;
+}
+.template-list li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 15px;
+    border: 1px solid #e9ecef;
+    border-radius: 4px;
+    margin-bottom: 8px;
+    background-color: #fff;
+}
+.template-name {
+    font-weight: 500;
+}
+.template-actions button {
+    margin-left: 8px;
+}
+
+/* Mensajes de estado en Opciones */
+.status-message {
+    padding: 10px 15px;
+    border-radius: 5px;
+    margin: 15px 0;
+    font-size: 0.95em;
+    text-align: center;
+    display: none; /* Oculto por defecto */
+}
+/* Clases de estado ya definidas arriba (status-success, status-error, etc.) pueden reutilizarse */
+
+.target-details-group {
+    padding: 10px;
+    border: 1px solid #eee;
+    margin-top: 10px;
+    border-radius: 4px;
+}

@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Extractor de Datos</title>
+    <link rel="stylesheet" href="styles_popup.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <img src="../icons/icon48.png" alt="Logo de la Extensión" class="logo">
+            <h1>Extractor de Datos</h1>
+        </header>
+        
+        <div class="status-section">
+            <p>Estado: <span id="status-indicator" class="status-disconnected">Desconectado</span></p>
+            <p id="notion-workspace-name"></p>
+        </div>
+
+        <div class="template-section">
+            <label for="template-select">Seleccionar Plantilla:</label>
+            <select id="template-select" class="styled-select">
+                <option value="">-- Sin Plantillas --</option>
+                </select>
+        </div>
+
+        <div class="actions-section">
+            <button id="extract-button" class="btn btn-primary" disabled>Extraer y Enviar</button>
+            <button id="start-selection-button" class="btn btn-secondary">Iniciar Selección de Elementos</button>
+        </div>
+        
+        <footer>
+            <button id="options-button" class="btn btn-link">Ir a Opciones</button>
+        </footer>
+    </div>
+    <script src="popup.js"></script></body>
+</html>

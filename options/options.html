@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Opciones - Extractor de Datos</title>
+    <link rel="stylesheet" href="styles_options.css">
+</head>
+<body>
+    <div class="options-container">
+        <header class="options-header">
+            <img src="../icons/icon48.png" alt="Logo Extensión" class="logo">
+            <h1>Configuración del Extractor de Datos</h1>
+        </header>
+
+        <nav class="tabs">
+            <button class="tab-button active" data-tab="connections">Conexiones API</button>
+            <button class="tab-button" data-tab="templates">Gestión de Plantillas</button>
+            <button class="tab-button" data-tab="sharing">Compartir Configuración</button>
+            <button class="tab-button" data-tab="general">Ajustes Generales</button>
+        </nav>
+
+        <main class="tab-content-area">
+            <section id="connections" class="tab-content active">
+                <h2>Conexiones API</h2>
+                <div class="connection-module">
+                    <h3>Notion</h3>
+                    <div id="notion-status">
+                        <p>Estado: <span id="notion-connection-status" class="status-disconnected">Desconectado</span></p>
+                        <p id="notion-workspace-details"></p>
+                    </div>
+                    <button id="connect-notion-button" class="btn btn-primary">Conectar a Notion</button>
+                    <button id="disconnect-notion-button" class="btn btn-danger" style="display:none;">Desconectar de Notion</button>
+                    <p class="info-text">La conexión con Notion utiliza OAuth 2.0. Serás redirigido para autorizar la extensión.</p>
+                </div>
+                </section>
+
+            <section id="templates" class="tab-content">
+                <h2>Gestión de Plantillas</h2>
+                <button id="create-new-template-button" class="btn btn-success">Crear Nueva Plantilla</button>
+                <div id="template-list-container">
+                    <p>Cargando plantillas...</p>
+                    </div>
+
+                <div id="template-editor-modal" class="modal" style="display:none;">
+                    <div class="modal-content">
+                        <span class="close-button" id="close-template-editor">&times;</span>
+                        <h3 id="template-editor-title">Crear Nueva Plantilla</h3>
+                        <form id="template-form">
+                            <input type="hidden" id="template-id">
+                            <div>
+                                <label for="template-name">Nombre de la Plantilla:</label>
+                                <input type="text" id="template-name" required>
+                            </div>
+                            <div>
+                                <label for="template-source-platform">Plataforma de Origen:</label>
+                                <select id="template-source-platform">
+                                    <option value="linkedin">LinkedIn</option>
+                                    <option value="instagram">Instagram</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label for="template-target-platform">Plataforma de Destino:</label>
+                                <select id="template-target-platform">
+                                    <option value="notion">Notion</option>
+                                    </select>
+                            </div>
+                            <div id="notion-target-details" class="target-details-group">
+                                <label for="notion-database-id">ID de Base de Datos de Notion:</label>
+                                <input type="text" id="notion-database-id" placeholder="Ej: a1b2c3d4-e5f6...">
+                                <button type="button" id="fetch-notion-databases" class="btn btn-small">Listar Bases de Datos</button>
+                                <select id="notion-database-select" style="display:none; margin-top: 5px;"></select>
+                            </div>
+                            
+                            <h4>Mapeo de Campos:</h4>
+                            <div id="field-mappings-container">
+                                </div>
+                            <button type="button" id="add-field-mapping-button" class="btn btn-secondary">Añadir Campo</button>
+                            
+                            <div class="form-actions">
+                                <button type="submit" class="btn btn-primary">Guardar Plantilla</button>
+                                <button type="button" id="cancel-template-editor" class="btn btn-link">Cancelar</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </section>
+
+            <section id="sharing" class="tab-content">
+                <h2>Compartir Configuración</h2>
+                <p>Exporta tus plantillas y configuraciones o importa un archivo existente.</p>
+                <div class="sharing-actions">
+                    <button id="export-config-button" class="btn btn-primary">Exportar Configuración</button>
+                    <div>
+                        <label for="import-config-input" class="btn btn-secondary">Importar Configuración</label>
+                        <input type="file" id="import-config-input" accept=".json" style="display:none;">
+                    </div>
+                </div>
+                 <p class="info-text">Nota: La exportación no incluye tokens de API ni credenciales sensibles.</p>
+            </section>
+
+            <section id="general" class="tab-content">
+                <h2>Ajustes Generales</h2>
+                <p>Aquí irán futuras configuraciones generales de la extensión.</p>
+                <!-- Ejemplo:
+                <label for="enable-notifications">Habilitar notificaciones:</label>
+                <input type="checkbox" id="enable-notifications" checked>
+                -->
+            </section>
+        </main>
+        
+        <div id="status-message-options" class="status-message"></div>
+
+    </div>
+    <script src="options.js"></script>
+</body>
+</html>

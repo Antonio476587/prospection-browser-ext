@@ -1,0 +1,31 @@
+/* content/styles_content.css */
+
+/* Estilos para el resaltado de elementos en modo selección */
+/* Estos estilos se inyectarán en la página web visitada. */
+/* Es importante usar nombres de clase específicos para evitar colisiones. */
+
+/* .mi-extension-highlight {
+    outline: 3px dashed #ff4500 !important; 
+    background-color: rgba(255, 69, 0, 0.1) !important;
+    box-shadow: 0 0 0 3px #ff4500, inset 0 0 0 3px #ff4500 !important;
+    cursor: pointer !important;
+    transition: outline 0.1s ease-in-out, background-color 0.1s ease-in-out;
+} */
+
+/* Puedes añadir estilos para un panel de control en la página si decides implementarlo */
+/*
+.mi-extension-selection-panel {
+    position: fixed !important;
+    top: 10px !important;
+    right: 10px !important;
+    background-color: white !important;
+    border: 1px solid #ccc !important;
+    padding: 10px !important;
+    z-index: 2147483647 !important; // Máximo z-index
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2) !important;
+    border-radius: 5px !important;
+    font-family: Arial, sans-serif !important;
+    font-size: 14px !important;
+    color: #333 !important;
+}
+*/
