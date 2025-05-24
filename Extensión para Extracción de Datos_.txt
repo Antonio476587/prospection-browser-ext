@@ -1,0 +1,517 @@
+﻿Plan Técnico para Extensión de Navegador de Extracción de Datos y Exportación a Notion
+I. Resumen Ejecutivo y Visión General del Proyecto
+A. Propósito
+El propósito fundamental de esta extensión de navegador es optimizar y automatizar el proceso de recopilación de información desde plataformas de redes sociales clave, específicamente LinkedIn e Instagram, y facilitar su consolidación organizada en herramientas de productividad como Notion. Un objetivo secundario, pero de importancia estratégica, es diseñar la extensión con una arquitectura que permita la integración futura con otros sistemas de salida de datos, asegurando la longevidad y adaptabilidad de la herramienta.
+B. Funcionalidades Principales
+La extensión ofrecerá un conjunto de funcionalidades robustas diseñadas para mejorar la eficiencia del usuario:
+1. Selección de Datos Dirigida por el Usuario: Permitirá a los usuarios identificar y seleccionar visualmente la información específica que desean extraer de las páginas de LinkedIn e Instagram.
+2. Exportación Basada en Plantillas: Los usuarios podrán crear, gestionar y utilizar plantillas personalizadas que definan cómo se estructura y mapea la información extraída para la exportación.
+3. Integración con Notion: La funcionalidad central de exportación se enfocará inicialmente en enviar los datos extraídos directamente a bases de datos o páginas designadas dentro del espacio de trabajo de Notion del usuario.
+4. Gestión Segura de API: Se implementarán mecanismos seguros para manejar las conexiones a APIs, con especial atención al flujo de autenticación OAuth 2.0 requerido por Notion.
+5. Compartición de Configuraciones: Los usuarios tendrán la capacidad de exportar e importar estados de la extensión o plantillas, facilitando la colaboración o la replicación de configuraciones entre diferentes usuarios o instancias.
+C. Importancia Estratégica
+La propuesta de valor de esta extensión radica en su capacidad para transformar un proceso manual y propenso a errores en un flujo de trabajo ágil y personalizable. Para profesionales del marketing, reclutadores, investigadores y cualquier usuario que dependa de la información de estas plataformas, la extensión promete un aumento significativo en la productividad, una mejor organización de los datos recopilados y la capacidad de adaptar la herramienta a sus necesidades específicas de flujo de trabajo.
+D. Desafíos Clave Abordados
+Este plan técnico aborda varios desafíos inherentes al desarrollo de tal extensión:
+* Extracción de Contenido Dinámico: La naturaleza altamente dinámica de LinkedIn e Instagram requiere estrategias sofisticadas para la extracción de datos que van más allá del simple análisis HTML.
+* Autenticación Segura: La integración con Notion y futuras plataformas exige un manejo impecable y seguro de las credenciales de API y los tokens de acceso.
+* Diseño Modular y Extensible: Para cumplir con el requisito de futuras integraciones de salida, la arquitectura debe ser inherentemente modular.
+La interconexión de estas funcionalidades es un aspecto crítico. Por ejemplo, la forma en que un usuario selecciona los datos (funcionalidad 1) debe ser compatible con cómo se definen las plantillas (funcionalidad 2). A su vez, estas plantillas deben poder mapear correctamente los datos para las llamadas a la API de Notion (funcionalidad 3). Esta dependencia mutua subraya la necesidad de un diseño holístico desde el inicio, en lugar de desarrollar cada característica de forma aislada. Un modelo de datos bien definido que fluya a través de toda la extensión es, por lo tanto, esencial. Los selectores de datos definidos por el usuario, por ejemplo, deben almacenarse en un formato que el sistema de plantillas pueda interpretar y que el módulo de exportación a Notion pueda utilizar para estructurar las cargas útiles de la API de manera efectiva.
+II. Diseño Arquitectónico Central
+A. Framework de Extensión de Navegador (Manifest V3)
+1. Adopción de Manifest V3 (MV3)
+La extensión se desarrollará utilizando la plataforma Manifest V3 de Chrome.1 Esta decisión es fundamental ya que MV3 impone un nuevo modelo de seguridad y rendimiento para las extensiones, dictando la estructura y las capacidades permitidas. El archivo manifest.json es el corazón de la extensión y especificará metadatos básicos como manifest_version (establecido en 3), name y version, que son claves obligatorias.1 Otras claves críticas que se definirán incluyen action (para la interfaz de usuario emergente), background (para el service worker), content_scripts (para la interacción con la página), permissions y host_permissions (para el acceso a APIs y sitios web).
+2. Componentes Clave
+La arquitectura de la extensión se compondrá de varios componentes principales, cada uno con responsabilidades distintas 2:
+   * Script de Fondo (Service Worker):
+Conforme a MV3, el script de fondo será un service worker controlado por eventos.2 Este componente es crucial para la lógica central de la extensión. Será responsable de gestionar el estado global de la extensión, manejar todas las comunicaciones con APIs externas (incluyendo el flujo OAuth 2.0 para Notion y las subsiguientes llamadas a la API de Notion), orquestar la comunicación entre los otros componentes de la extensión (popup, scripts de contenido, página de opciones) y escuchar eventos del navegador importantes para la extensión (por ejemplo, actualizaciones de pestañas, finalización de flujos de autenticación a través de chrome.identity). Una característica clave de los service workers en MV3 es su naturaleza no persistente ("persistent": false implícito) 3, lo que significa que se descargarán cuando estén inactivos para conservar recursos. La lógica de la extensión debe diseñarse teniendo esto en cuenta, asegurando que las tareas se completen o que el estado se guarde adecuadamente antes de que el service worker se descargue.
+   * Scripts de Contenido:
+Estos son archivos JavaScript que se inyectarán directamente en las páginas web de LinkedIn e Instagram.2 Su función principal es interactuar con el Document Object Model (DOM) de estas páginas. Serán responsables de habilitar la selección de datos por parte del usuario, extraer la información basada en las selecciones del usuario o las plantillas predefinidas, y potencialmente mostrar elementos de interfaz de usuario en la página para facilitar el proceso de selección. Aunque los scripts de contenido se ejecutan en un entorno JavaScript aislado del de la página web y de otros scripts de la extensión, pueden comunicarse de forma segura con el script de fondo para enviar datos extraídos o recibir instrucciones.3
+   * Elementos de Interfaz de Usuario (UI):
+      * Popup (Acción del Navegador): Se accederá a esta interfaz a través del icono de la extensión en la barra de herramientas del navegador. Su propósito es ofrecer acceso rápido a acciones comunes, como iniciar una extracción de datos, mostrar el estado actual de la extensión (por ejemplo, conexión a Notion) y proporcionar un enlace a la página de opciones para configuraciones más detalladas.2 El diseño de la popup debe ser minimalista y enfocado en la tarea, evitando la sobrecarga de información.2
+      * Página de Opciones: Esta será una página HTML dedicada, accesible desde la popup o la página de gestión de extensiones del navegador. Aquí es donde los usuarios realizarán configuraciones más complejas 2, como gestionar las conexiones a la API (iniciar el flujo OAuth de Notion), crear, editar y eliminar plantillas de exportación, establecer preferencias generales de la extensión y manejar la importación/exportación de configuraciones y plantillas.
+      * UI en la Página (a través de Scripts de Contenido): Para mejorar la experiencia de selección de datos, los scripts de contenido podrán inyectar elementos de UI temporales directamente en las páginas de LinkedIn o Instagram. Esto podría incluir resaltado visual de elementos bajo el cursor durante el modo de selección o pequeños paneles para confirmar selecciones.
+B. Estrategia de Comunicación entre Componentes
+La comunicación efectiva entre los diversos componentes de la extensión (script de fondo, scripts de contenido, popup, página de opciones) es vital para una funcionalidad cohesiva.
+      1. Paso de Mensajes:
+Se utilizará la API de mensajería de extensiones de Chrome, principalmente chrome.runtime.sendMessage() y chrome.runtime.onMessage.addListener(), para solicitudes y respuestas únicas entre componentes.2 Por ejemplo, un script de contenido enviará los datos extraídos al script de fondo, o la popup solicitará el estado actual de la conexión a Notion desde el script de fondo. Para escenarios que requieran una comunicación continua o un canal abierto (aunque menos comunes con service workers de MV3 que se descargan), se podría considerar chrome.runtime.connect() y chrome.runtime.onConnect.addListener() para conexiones de larga duración.3
+      2. API de Almacenamiento para Estado Compartido:
+La API chrome.storage (ya sea local o sync) puede ser utilizada por todos los componentes para acceder a configuraciones compartidas o al estado de la extensión si el paso de mensajes directo no es la opción más eficiente o adecuada para ciertos datos.2 Por ejemplo, las plantillas de exportación definidas por el usuario se guardarán usando chrome.storage y podrán ser leídas tanto por el script de fondo (al realizar una exportación) como por la página de opciones (al gestionar las plantillas).
+C. Diseño Modular para Extensibilidad (Adaptadores de Salida)
+         1. Principio Fundamental: La funcionalidad de exportación de datos se diseñará de manera que sea independiente del destino específico de salida. Aunque la integración inicial será con Notion, la arquitectura debe prever la adición de otros servicios (por ejemplo, Google Sheets, Airtable) en el futuro con un mínimo de refactorización del código central.
+         2. Patrón de Módulo (Module Pattern): Se empleará el Patrón de Módulo de JavaScript 5 para encapsular la lógica específica de cada destino de salida en módulos separados (por ejemplo, NotionAdapter.js, GoogleSheetsAdapter.js). Cada uno de estos módulos será responsable de la autenticación específica de su API, el formateo de datos según los requisitos de esa API y la lógica de envío de datos.
+         3. Patrón Adaptador/Estrategia (Adapter/Strategy Pattern): Se definirá una interfaz común, por ejemplo, IOutputAdapter, que todos los módulos de salida deberán implementar. Esta interfaz especificará un conjunto de métodos que el núcleo de la extensión utilizará para interactuar con cualquier adaptador, como authenticate(), sendData(data, templateConfig), y getSchema(). El script de fondo, al procesar una exportación, seleccionará y utilizará el adaptador apropiado basándose en la configuración del usuario o de la plantilla.
+         4. Patrón Fábrica (Factory Pattern) (Opcional): Para una mayor flexibilidad en la creación e instanciación de los módulos adaptadores, se podría considerar el uso de un Patrón Fábrica.6 Este patrón podría encargarse de devolver la instancia correcta del adaptador basándose en un identificador de plataforma (por ejemplo, "notion", "google_sheets").
+La abstracción de la lógica del destino de salida no solo facilita la adición de nuevos servicios en el futuro, sino que también aporta beneficios inmediatos. Simplifica las pruebas, ya que se pueden utilizar adaptadores simulados (mocks) para probar la lógica de exportación central sin depender de APIs externas reales. Además, hace que la propia integración con Notion sea más limpia y mantenible, al aislar su lógica específica dentro de su propio módulo adaptador. Si el código específico de Notion estuviera disperso por todo el proceso de exportación de datos, añadir otro servicio como Google Sheets requeriría una refactorización significativa y propensa a errores. Al definir una interfaz IOutputAdapter, la lógica central de exportación puede simplemente invocar adapter.sendData(), independientemente de si el adaptador es para Notion o para cualquier otra plataforma. Esto reduce el acoplamiento entre componentes y mejora la organización general del código, principios promovidos por el Patrón de Módulo.5
+Tabla II.C.1: Definición de la Interfaz del Módulo de Salida (IOutputAdapter)
+Método
+	Parámetros
+	Tipo de Retorno Esperado
+	Descripción
+	async connect(uiUtils: object): Promise<boolean>
+	uiUtils: Objeto con utilidades para interactuar con la UI (ej. mostrar modales para OAuth).
+	Promise<boolean>: Resuelve a true si la conexión es exitosa.
+	Inicia el proceso de autenticación/conexión con el servicio de salida.
+	async sendData(data: ExtractedData, template: ExportTemplate, connectionDetails: ConnectionInfo): Promise<ExportResult>
+	data: Objeto con los datos extraídos. template: La plantilla de exportación utilizada. connectionDetails: Información de la conexión activa.
+	Promise<ExportResult>: Objeto con el resultado de la exportación.
+	Envía los datos formateados al servicio de salida utilizando la plantilla y los detalles de conexión.
+	async getSchema(connectionDetails: ConnectionInfo): Promise<SchemaField>
+	connectionDetails: Información de la conexión activa.
+	Promise<SchemaField>: Array de objetos que describen los campos del destino (ej. columnas de base de datos).
+	Obtiene el esquema del destino (ej. propiedades de una base de datos de Notion) para facilitar el mapeo de campos en la UI de plantillas.
+	getDisplayName(): string
+	Ninguno
+	string: Nombre legible del servicio de salida.
+	Devuelve un nombre descriptivo para el servicio de salida (ej. "Notion", "Google Sheets") para ser usado en la UI.
+	getServiceId(): string
+	Ninguno
+	string: Identificador único del servicio.
+	Devuelve un ID único para el servicio (ej. "notion_api_v1").
+	isConfigurable(): boolean
+	Ninguno
+	boolean: Indica si el servicio requiere configuración adicional.
+	Devuelve true si el adaptador necesita una configuración específica más allá de la autenticación básica.
+	Nota: ExtractedData, ExportTemplate, ConnectionInfo, ExportResult, y SchemaField son tipos de datos/interfaces que se definirán como parte del modelo de datos de la extensión.
+Esta tabla formaliza el concepto abstracto de un "adaptador", estableciendo un contrato claro que cualquier nuevo módulo de salida deberá cumplir. Esto asegura una integración consistente y predecible en la arquitectura existente y sirve como una especificación detallada para los desarrolladores que construyan tanto el adaptador inicial de Notion como los futuros adaptadores.
+III. Profundización en la Implementación de Funcionalidades
+A. Motor de Extracción de Datos
+         1. Selección de Información Dirigida por el Usuario desde Páginas Web (LinkedIn, Instagram)
+         * Rol del Script de Contenido: La funcionalidad de selección de elementos será implementada principalmente dentro de los scripts de contenido. Se activará un "modo de selección de elementos" a través de la interfaz emergente (popup) de la extensión o, potencialmente, mediante un menú contextual del navegador.
+         * Retroalimentación Visual: Durante el modo de selección, los scripts de contenido modificarán la apariencia de la página activa para proporcionar retroalimentación visual al usuario. Esto incluirá resaltar los elementos DOM sobre los que el usuario pase el cursor. Al hacer clic en un elemento, el script capturará la información necesaria para identificarlo de manera única y robusta, como selectores CSS o expresiones XPath.
+         * APIs de Selección y Recorrido del DOM:
+         * Para la extracción de texto simple seleccionado por el usuario (por ejemplo, arrastrando el cursor sobre un párrafo), se pueden utilizar las APIs estándar del navegador como window.getSelection() y Range.extractContents().7
+         * Para selecciones más complejas o para capturar datos que no son solo texto (como URLs de imágenes o enlaces), los scripts de contenido generarán selectores estables. XPath 8 es una herramienta poderosa para navegar por estructuras DOM complejas y puede ser preferible en algunos casos para lograr mayor robustez frente a cambios en el diseño de la página. Se podrían considerar bibliotecas auxiliares para ayudar en la generación de estos selectores robustos, aunque el uso de dependencias en scripts de contenido debe evaluarse cuidadosamente por su impacto en el rendimiento.
+         * Almacenamiento de Selecciones: La información sobre los elementos seleccionados (el selector, el atributo deseado como textContent, href, src, y un nombre descriptivo dado por el usuario) se almacenará como parte de la definición de la plantilla de exportación.
+         2. Estrategias para Manejar Contenido Dinámico y Posibles Medidas Anti-Extracción
+         * Desafío: LinkedIn e Instagram son aplicaciones web modernas que dependen en gran medida de JavaScript para cargar y renderizar contenido de forma dinámica.9 El contenido nuevo (como publicaciones en un feed, secciones de perfil que se cargan bajo demanda, o resultados de búsqueda paginados) a menudo no está presente en el HTML inicial de la página. Por lo tanto, un simple análisis del HTML estático resultará insuficiente para una extracción de datos completa y fiable.
+         * Adaptación de Técnicas de Extracción Dinámica del Lado del Cliente: Dado que la extensión opera dentro del navegador del usuario, las técnicas de extracción deben implementarse en JavaScript dentro de los scripts de contenido, utilizando APIs web estándar.
+         * MutationObserver: Esta API permite a los scripts observar cambios en el DOM. Se puede utilizar para detectar cuándo se añade nuevo contenido a la página (por ejemplo, cuando se cargan nuevas publicaciones en un feed infinito o cuando se expande una sección de un perfil) y entonces proceder a la extracción de los datos relevantes.
+         * Sondeo (Polling) con Tiempos de Espera: En algunos casos, puede ser necesario sondear periódicamente la existencia de elementos específicos en el DOM, especialmente si su aparición no está directamente ligada a una mutación observable fácilmente. Esto es conceptualmente similar a la funcionalidad WebDriverWait y presence_of_element_located que se encuentra en herramientas de automatización como Selenium 9, pero implementado en JavaScript con setTimeout o setInterval y comprobaciones del DOM.
+         * Manejo de Desplazamiento (Scroll): Para contenido que se carga de forma perezosa (lazy-loading) a medida que el usuario se desplaza por la página (común en feeds de noticias), el script de contenido podría, si es iniciado por una acción explícita del usuario (para evitar comportamientos intrusivos), simular el desplazamiento para activar la carga de nuevo contenido y luego esperar a que aparezca antes de intentar extraerlo.
+         * Simulación de Interacción del Usuario (con Cautela): Para contenido que solo aparece después de una interacción del usuario, como hacer clic en un botón de "Ver más", los scripts de contenido pueden, en teoría, despachar eventos de clic a dichos elementos. Sin embargo, esto debe hacerse con extrema cautela y preferiblemente como resultado de una intención clara del usuario, ya que una simulación agresiva de interacciones podría ser detectada por las plataformas como comportamiento de bot.
+         * Consideraciones Anti-Extracción:
+         * Limitación de Tasa (Rate Limiting): La extensión no debe realizar un número excesivo de acciones (como clics simulados o peticiones de datos implícitas al cargar contenido) en un corto período. Las acciones iniciadas y controladas por el usuario son generalmente más seguras.
+         * Comportamiento Similar al Humano: Evitar patrones predecibles y rápidos que puedan ser interpretados como actividad de un bot. Introducir pequeños retrasos aleatorios entre acciones podría ser una estrategia, aunque su efectividad es variable.
+         * Robustez de los Selectores: Es crucial depender de atributos estables para los selectores (IDs si están disponibles, atributos data-* personalizados, o combinaciones robustas de clases y estructura) en lugar de nombres de clase generados automáticamente o estructuras DOM profundamente anidadas que son propensas a cambiar con frecuencia con las actualizaciones de la interfaz de usuario de las plataformas.
+Es importante destacar que, si bien la documentación sobre extracción web a menudo menciona herramientas como Selenium y Puppeteer para manejar contenido dinámico 9, estas herramientas operan típicamente lanzando y controlando instancias separadas del navegador y son más adecuadas para la automatización externa. Dentro del contexto de una extensión de navegador, los scripts de contenido son el medio principal y directo para interactuar con el DOM de la página activa del usuario. Los principios de esperar a que los elementos se carguen y manejar contenido renderizado por JavaScript son transferibles, pero la implementación se basa en las APIs web estándar disponibles para los scripts de contenido. La extensión no ejecutará Python ni controlará un WebDriver; en su lugar, el JavaScript del script de contenido realizará estas tareas directamente en la pestaña del usuario.Tabla III.A.1: Estrategias y Desafíos de Extracción de Contenido Dinámico
+Plataforma
+	Comportamiento Dinámico Común
+	Técnica de Script de Contenido Propuesta
+	Desafíos Potenciales
+	LinkedIn
+	Carga perezosa de perfiles/secciones, feed de scroll infinito, modales para información adicional.
+	IntersectionObserver para scroll infinito, MutationObserver para nuevo contenido, sondeo de elementos específicos para modales.
+	Selectores que cambian con frecuencia, estructuras DOM complejas, posible uso de Shadow DOM en componentes.
+	Instagram
+	Scroll infinito en feeds y listas de seguidores/seguidos, carga perezosa de imágenes/videos, modales para publicaciones/historias.
+	IntersectionObserver o manejo de eventos de scroll para scroll infinito, MutationObserver para nuevas publicaciones, sondeo para modales.
+	Alta dependencia de nombres de clase ofuscados/generados, contenido multimedia, detección de patrones de interacción.
+	
+
+
+
+
+
+Esta tabla proporciona un análisis enfocado de los desafíos específicos de extracción en las plataformas objetivo y propone soluciones concretas basadas en JavaScript adecuadas para los scripts de contenido. Reconoce la naturaleza dinámica de estas plataformas [9] y traduce los principios generales de extracción web en estrategias accionables para el contexto de la extensión.
+
+B. Exportación de Datos y Gestión de Destinos
+         1. Integración con la API de Notion
+         * Autenticación (OAuth 2.0):
+La integración con Notion utilizará el flujo de autorización OAuth 2.0 estándar para integraciones públicas, tal como se detalla en la documentación de Notion.12
+            * Se empleará la API chrome.identity.launchWebAuthFlow para iniciar el flujo de autenticación desde la página de opciones de la extensión.13 Esta función abre una nueva ventana o pestaña del navegador dirigida a la URL de autorización de Notion.
+            * El script de fondo de la extensión será responsable de manejar la redirección desde Notion una vez que el usuario autorice la aplicación. Notion redirigirá al redirect_uri configurado, incluyendo un code de autorización temporal.
+            * El script de fondo intercambiará este code por un access_token realizando una solicitud POST directamente al endpoint de token de Notion (https://api.notion.com/v1/oauth/token). Esta solicitud incluirá el code, grant_type, redirect_uri, y las credenciales del cliente (CLIENT_ID y CLIENT_SECRET) codificadas en Base64 en la cabecera de Authorization (Basic Auth).12
+            * Consideración de Seguridad Crítica: El CLIENT_SECRET de Notion es una credencial sensible. La práctica ideal para manejar secretos de cliente en flujos OAuth es que el intercambio de token (paso 3 de OAuth) ocurra en un servidor backend seguro controlado por el desarrollador de la extensión. Incluir el CLIENT_SECRET directamente en el código de una extensión empaquetada (incluso en el script de fondo, que es menos accesible que los scripts de contenido) presenta un riesgo de seguridad, ya que el código de la extensión puede ser desempaquetado e inspeccionado. Para los propósitos de este plan, se asumirá que el intercambio de token ocurre en el script de fondo, reconociendo esto como un área que requiere la máxima atención y posiblemente una revisión si se dispone de infraestructura de backend.
+            * El access_token obtenido se almacenará de forma segura utilizando la API chrome.storage.sync (para disponibilidad entre navegadores sincronizados, si el tamaño y la política lo permiten) o chrome.storage.local (para almacenamiento específico del dispositivo).4
+            * Mapeo de Datos y Esquema:
+La extensión permitirá a los usuarios mapear los campos de datos extraídos de LinkedIn/Instagram a las propiedades específicas de una base de datos de Notion.
+               * Para facilitar este mapeo, la extensión utilizará la API de Notion para recuperar el esquema de la base de datos de Notion seleccionada por el usuario (mediante una solicitud GET /v1/databases/{database_id}).12 La información del esquema (nombres de propiedades, tipos de datos) se utilizará para poblar dinámicamente las opciones de mapeo en la interfaz de usuario de creación de plantillas. Esto asegura que los usuarios puedan mapear a propiedades reales y existentes, minimizando errores.
+               * Creación/Actualización de Páginas/Entradas de Base de Datos:
+               * Se utilizará el endpoint POST /v1/pages de la API de Notion para crear nuevas entradas en una base de datos de Notion o para crear nuevas páginas como hijas de una página existente.17
+               * El objeto parent en el cuerpo de la solicitud especificará el database_id (si se añade a una base de datos) o el page_id (si se añade como subpágina).17
+               * El objeto properties contendrá los datos extraídos, mapeados a los valores de las propiedades de Notion, respetando el esquema de la base de datos de destino.17
+               * El contenido para el cuerpo de la página (si aplica, más allá de las propiedades de la base de datos) se puede añadir a través del array children de objetos de bloque de Notion.12
+               * Existen limitaciones en las propiedades que se pueden escribir: propiedades generadas por Notion como rollup, created_by, created_time, last_edited_by, o last_edited_time no se pueden establecer o modificar a través de la API.17
+               * Aprovechamiento de la Solución Alternativa para Plantillas de Notion 18:
+Aunque la API de Notion no ofrece una función directa para "duplicar una página de plantilla" al crear nuevas entradas de base de datos, la extensión puede implementar una funcionalidad similar inspirada en la discusión de 18:
+                  * Permitir a los usuarios especificar una "página o estructura de base de datos de plantilla" existente en su espacio de Notion.
+                  * La extensión, utilizando la API de Notion, recuperará la estructura de esta página/base de datos de plantilla (es decir, sus propiedades y, si es una página, la estructura de sus bloques de contenido).
+                  * Al exportar nuevos datos, la extensión recreará programáticamente esta estructura (propiedades y bloques) para la nueva página o entrada de base de datos, y luego la poblará con los datos extraídos. Esto se alinea con el deseo del usuario de "creación de plantillas para la exportación de datos".
+La API de Notion impone límites de tasa de solicitudes.12 Es imperativo que la extensión maneje estos límites de manera elegante para evitar fallos en la exportación y una mala experiencia de usuario. Esto podría implicar la implementación de una cola de solicitudes, el procesamiento por lotes o el uso de una estrategia de retroceso exponencial (exponential backoff) en caso de errores de límite de tasa. Además, las respuestas de error de la API de Notion (por ejemplo, código 401 para problemas de autenticación, 400 para solicitudes incorrectas, 403 para problemas de permisos 17) deben ser capturadas, interpretadas y comunicadas claramente al usuario, ofreciendo, si es posible, opciones para reintentar o corregir el problema. Si un usuario extrae datos de muchos perfiles e intenta enviarlos todos a Notion simultáneamente, la extensión podría alcanzar fácilmente estos límites. Por lo tanto, el módulo adaptador de Notion debe incluir lógica para gestionar la frecuencia de las solicitudes y manejar los códigos de error de la API de forma robusta.Tabla III.B.1: Resumen de Interacción con la API de Notion
+
+
+Acción
+	Método HTTP
+	Endpoint
+	Parámetros/Cabeceras Clave de Solicitud
+	Ejemplo Fragmento Cuerpo Solicitud (para Crear Página)
+	Ejemplo Fragmento Respuesta Éxito
+	Referencias
+	Autenticar (Flujo OAuth - Intercambio de Código)
+	POST
+	/v1/oauth/token
+	Authorization: Basic <base64(client_id:client_secret)>, Content-Type: application/json, Notion-Version
+	{"grant_type": "authorization_code", "code": "...", "redirect_uri": "..."}
+	{"access_token": "...", "bot_id": "...",...}
+	12
+	Obtener Esquema de Base de Datos
+	GET
+	/v1/databases/{database_id}
+	Authorization: Bearer <access_token>, Notion-Version
+	N/A
+	{"object": "database", "id": "...", "properties": {...}}
+	12
+	Crear Página en Base de Datos
+	POST
+	/v1/pages
+	Authorization: Bearer <access_token>, Content-Type: application/json, Notion-Version
+	{"parent": {"database_id": "..."}, "properties": {"Name": {"title": [{"text": {"content": "..."}}]},...}, "children": [...]}
+	{"object": "page", "id": "...",...}
+	12
+	Crear Página (hija de otra página)
+	POST
+	/v1/pages
+	Authorization: Bearer <access_token>, Content-Type: application/json, Notion-Version
+	{"parent": {"page_id": "..."}, "properties": {"title": [{"text": {"content": "..."}}]}, "children": [...]}
+	{"object": "page", "id": "...",...}
+	12
+	Añadir Bloques Hijos a Página/Bloque
+	PATCH
+	/v1/blocks/{block_id}/children
+	Authorization: Bearer <access_token>, Content-Type: application/json, Notion-Version
+	{"children": [{"object": "block", "type": "paragraph",...}]}
+	{"object": "list", "results": [...]}
+	12
+	
+
+
+
+
+
+*Nota: La cabecera `Notion-Version` (ej. `Notion-Version: 2022-06-28`) es requerida para todas las solicitudes a la API de Notion.[19]*
+
+                  2. Framework para Futuros Conectores de Salida Haciendo referencia al diseño modular discutido en la Sección II.C, cada nuevo destino de salida (por ejemplo, Google Sheets, Airtable, Trello) requerirá el desarrollo de su propio módulo adaptador. Este adaptador deberá implementar la interfaz IOutputAdapter definida. La página de opciones de la extensión necesitará una sección de UI dedicada para gestionar las conexiones a estos nuevos servicios, lo que podría implicar la implementación de diferentes flujos de autenticación (por ejemplo, OAuth 2.0 específico de Google, claves API, etc.) para cada nuevo servicio. El diseño modular asegura que la lógica central de extracción y procesamiento de plantillas permanezca sin cambios, y solo se necesite añadir un nuevo "adaptador" y la UI de configuración correspondiente.
+C. Sistema de Plantillas de Exportación
+                  1. Definición de Plantilla e Interfaz de Usuario
+                  * Estructura de la Plantilla: Una plantilla de exportación se representará internamente como un objeto JSON. Esta estructura contendrá toda la información necesaria para definir cómo se extraen los datos de una plataforma de origen y cómo se mapean a una plataforma de destino. Los campos clave incluirán:
+                  * id: Un identificador único para la plantilla.
+                  * name: Un nombre descriptivo y legible por el usuario para la plantilla (por ejemplo, "Perfil de LinkedIn a Base de Datos de Candidatos").
+                  * sourcePlatform: Identificador de la plataforma de origen (por ejemplo, "linkedin", "instagram").
+                  * targetPlatform: Identificador de la plataforma de destino (inicialmente "notion", pero extensible).
+                  * targetDetails: Un objeto que contiene detalles específicos del destino. Para Notion, esto podría incluir el database_id de la base de datos de destino o el page_id de la página padre.
+                  * fieldMappings: Un array de objetos, donde cada objeto define el mapeo para un único campo de datos. Cada objeto de mapeo contendrá:
+                  * sourceFieldName: Un nombre legible para el punto de datos (por ejemplo, "Nombre del Perfil", "Empresa Actual").
+                  * sourceSelector: El selector CSS o la expresión XPath utilizada para localizar el elemento HTML que contiene el dato en la página de origen.
+                  * sourceAttribute: El atributo del elemento HTML del cual extraer el dato (por ejemplo, textContent para el texto visible, href para la URL de un enlace, src para la URL de una imagen).
+                  * targetFieldId: El identificador (nombre o ID) del campo correspondiente en la plataforma de destino (por ejemplo, el nombre de una propiedad en una base de datos de Notion).
+                  * transformationLogic (opcional): Un campo para definir transformaciones simples que se aplicarán al dato extraído antes de enviarlo al destino (por ejemplo, eliminar espacios en blanco al principio y al final, convertir un formato de fecha, extraer una subcadena). Inicialmente, esto podría ser limitado, con potencial de expansión.
+                  * UI para Creación/Edición: La página de opciones de la extensión albergará la interfaz de usuario para la gestión de plantillas. Esta UI permitirá:
+                  * Asignar un nombre a la plantilla.
+                  * Seleccionar las plataformas de origen y destino.
+                  * Especificar los detalles del destino (por ejemplo, seleccionar una base de datos de Notion de una lista desplegable, la cual se poblaría dinámicamente llamando a la API de Notion para listar las bases de datos a las que la extensión tiene acceso).
+                  * Añadir, eliminar y editar los mapeos de campos. Esta parte de la UI podría ser la más compleja, necesitando una forma intuitiva para que los usuarios definan el sourceSelector. Esto podría implicar un botón que active el "modo de selección de elementos" (discutido en III.A.1) en una pestaña activa de LinkedIn/Instagram, o permitir la entrada manual de selectores para usuarios avanzados.
+                  * Para renderizar estas interfaces dinámicas y formularios, se podrían considerar bibliotecas de plantillas del lado del cliente ligeras como Handlebars o Mustache 20, o incluso Mizu.js 21 si se alinea con una filosofía de desarrollo sin pasos de compilación, lo cual es atractivo para algunos desarrolladores de extensiones. Sin embargo, el uso de JavaScript puro (Vanilla JS) con plantillas literales (template literals) es también una opción robusta, eficiente y libre de dependencias externas.
+                  2. Almacenamiento y Gestión de Plantillas
+Las plantillas definidas por el usuario se almacenarán utilizando la API chrome.storage.
+                     * Se podría usar chrome.storage.sync si las plantillas son relativamente pequeñas en tamaño y los usuarios se beneficiarían de tenerlas sincronizadas automáticamente a través de todos los navegadores donde hayan iniciado sesión con su cuenta de Chrome.4 Hay que tener en cuenta las limitaciones de chrome.storage.sync: aproximadamente 8KB por ítem individual y un total de unos 100KB para toda la extensión.
+                     * Si se anticipa que las plantillas pueden volverse muy complejas, numerosas, o si la sincronización automática no es una prioridad alta, chrome.storage.local es una alternativa viable.4 Ofrece un límite de almacenamiento significativamente mayor (alrededor de 10MB por defecto, que puede aumentarse solicitando el permiso unlimitedStorage) pero los datos no se sincronizan entre dispositivos.
+                     * La página de opciones mostrará una lista de las plantillas guardadas, permitiendo a los usuarios seleccionarlas para su edición, eliminarlas o duplicarlas para crear nuevas plantillas basadas en existentes.
+El objeto de plantilla actúa como un puente crucial entre las estructuras DOM, a menudo variables y complejas, de LinkedIn e Instagram, y el esquema estructurado de Notion (u otros futuros destinos de salida). El diseño de este objeto de plantilla y la UI para su creación impactan directamente en la flexibilidad, potencia y facilidad de uso de la extensión. El array fieldMappings es el corazón de esta funcionalidad, ya que vincula explícitamente una pieza específica de información en la página de origen (identificada por sourceSelector y sourceAttribute) con un campo específico en el sistema de destino (targetFieldId). Esto permite que la misma lógica de extracción general pueda poblar diferentes bases de datos de Notion o incluso diferentes sistemas de salida, simplemente cambiando o seleccionando una plantilla diferente.
+Tabla III.C.1: Estructura del Objeto de Configuración de Plantilla (Ejemplo)
+
+
+JSON
+
+
+
+
+{
+ "id": "tpl_1678886400000",
+ "name": "Perfil LinkedIn a CRM Interno (Notion)",
+ "sourcePlatform": "linkedin",
+ "targetPlatform": "notion",
+ "targetDetails": {
+   "notionDatabaseId": "a1b2c3d4-e5f6-7890-1234-567890abcdef"
+ },
+ "fieldMappings":", // Ejemplo de selector diferente
+     "sourceAttribute": "content", // Atributo 'content' de la etiqueta meta
+     "targetFieldId": "URL LinkedIn",
+     "targetFieldNotionType": "url",
+     "defaultValue": "",
+     "isRequired": true
+   },
+   {
+     "sourceFieldName": "Foto de Perfil",
+     "sourceSelector": "img.pv-top-card-profile-image__image.pv-top-card-profile-image--show",
+     "sourceAttribute": "src",
+     "targetFieldId": "Foto",
+     "targetFieldNotionType": "files", // Para Notion, las imágenes se manejan como archivos
+     "defaultValue": "",
+     "isRequired": false
+   }
+ ]
+}
+
+Nota: targetFieldNotionType se añade para ayudar a formatear correctamente los datos para la API de Notion. Los selectores son ejemplos y necesitarían ser verificados y ajustados para la estructura actual de LinkedIn.
+Esta tabla proporciona una definición clara e inequívoca de lo que constituye una plantilla. Es esencial para los desarrolladores que construyen la interfaz de usuario de creación de plantillas, el mecanismo de almacenamiento y el motor de exportación que consume estas plantillas.
+D. Gestión Segura de Conexiones API
+                     1. Implementación del Flujo OAuth (utilizando chrome.identity)
+                     * chrome.identity.launchWebAuthFlow(details, callback): Esta es la API central de Chrome Extensions para iniciar flujos OAuth 2.0 de manera segura desde una extensión.13
+                     * details.url: Esta será la URL de autorización de Notion (https://api.notion.com/v1/oauth/authorize) construida con los parámetros requeridos: client_id (el ID de cliente de su integración de Notion), redirect_uri (ver abajo), response_type='code', y owner='user'.12
+                     * details.interactive: Debe establecerse en true para permitir la interacción del usuario con la página de autorización de Notion (por ejemplo, para iniciar sesión y conceder permisos).14
+                     * redirect_uri: Este es un parámetro crucial. Para las extensiones de Chrome que utilizan launchWebAuthFlow, la URI de redireccionamiento debe generarse utilizando chrome.identity.getRedirectURL("oauth2") o una ruta personalizada (por ejemplo, chrome.identity.getRedirectURL("callback")). El valor resultante típicamente se parece a https://<extension-id>.chromiumapp.org/oauth2 o https://<extension-id>.chromiumapp.org/callback. Esta URI exacta debe estar registrada y permitida en la configuración de su integración de Notion en el panel de desarrolladores de Notion.12
+                     * Manejo del Callback: La función de callback proporcionada a launchWebAuthFlow recibirá la responseUrl completa a la que Notion redirige después de la interacción del usuario. Esta URL contendrá el code de autorización temporal (si el usuario concedió acceso) o un error (si el usuario denegó el acceso o ocurrió otro problema). Este code (o el error) debe ser extraído de la responseUrl y luego enviado al script de fondo de la extensión para el siguiente paso.
+                     * Intercambio de Token en el Script de Fondo: Al recibir el code de autorización, el script de fondo realizará una solicitud POST segura directamente al endpoint de token de Notion (https://api.notion.com/v1/oauth/token). Esta solicitud incluirá el code, grant_type='authorization_code', la misma redirect_uri utilizada en el paso de autorización, y la cabecera Authorization con el esquema Basic y las credenciales CLIENT_ID:CLIENT_SECRET codificadas en Base64.12 La respuesta de este endpoint contendrá el access_token (y posiblemente un refresh_token, aunque la documentación de Notion para OAuth público se centra en el access_token).
+                     2. Almacenamiento y Manejo Seguro de Tokens/Claves API
+                     * Almacenamiento de Tokens: El access_token obtenido de Notion (y cualquier refresh_token, si Notion lo proporciona y la extensión implementa la lógica de actualización de tokens) debe almacenarse de forma segura. Se utilizará la API chrome.storage. chrome.storage.sync podría usarse para la disponibilidad entre navegadores si el usuario está sincronizando su perfil de Chrome, pero se deben considerar las implicaciones de seguridad de sincronizar tokens y las limitaciones de tamaño.4 chrome.storage.local ofrece almacenamiento persistente en el dispositivo local y podría ser una opción más segura si la sincronización del token no es un requisito.4 chrome.storage.session podría considerarse para tokens que solo necesitan ser válidos durante la sesión actual del navegador, pero los tokens de acceso de Notion suelen tener una vida útil más larga.
+                     * Minimización de Alcance (Scope): Durante el flujo OAuth, la extensión solo debe solicitar los permisos (scopes) estrictamente necesarios para su funcionamiento. Esto sigue el principio de menor privilegio.
+                     * No Codificar Credenciales Sensibles: Las claves API y, especialmente, los secretos de cliente (como el CLIENT_SECRET de Notion) nunca deben estar codificados directamente en el código del lado del cliente que es visible o fácilmente accesible (scripts de contenido, UI de la popup). Para el script de fondo, si no se utiliza un intermediario de servidor para el paso de intercambio de token OAuth, la presencia del CLIENT_SECRET sigue siendo un punto sensible. La mejor práctica general 22 es evitar incrustar claves API directamente en el código. Si se introduce un componente de servidor para mediar en el intercambio de tokens OAuth, el CLIENT_SECRET residiría de forma segura en ese servidor.
+                     * Uso de Tokens: Los tokens de acceso solo deben enviarse a través de conexiones HTTPS seguras y únicamente al dominio de la API de Notion (api.notion.com).
+                     * Revocación/Reautenticación: La extensión debe proporcionar un mecanismo en la interfaz de usuario (probablemente en la página de opciones) para que los usuarios puedan "desconectar" la integración de Notion. Esta acción debería eliminar el token almacenado (utilizando chrome.storage.remove()) y, si la API de Notion ofrece un endpoint de revocación de tokens, llamarlo. También debe permitir al usuario iniciar el proceso de autenticación de nuevo si la conexión se pierde o el token expira y no se puede refrescar.
+Un desafío significativo para las extensiones puramente del lado del cliente que realizan flujos OAuth 2.0 como el de código de autorización es el manejo del CLIENT_SECRET durante el paso de intercambio de código por token. La documentación de Notion 12 requiere este secreto para la solicitud POST /v1/oauth/token. Si esta solicitud se realiza directamente desde el script de fondo de la extensión, el CLIENT_SECRET debe estar presente allí. Aunque los scripts de fondo están más protegidos que los scripts de contenido o las páginas de UI, el secreto sigue siendo parte del código empaquetado de la extensión, que un usuario técnicamente competente podría desempaquetar e inspeccionar. El flujo OAuth 2.0 estándar de código de autorización fue diseñado originalmente para clientes confidenciales (como aplicaciones web del lado del servidor) que pueden almacenar de forma segura un secreto. Para clientes públicos (como aplicaciones móviles o aplicaciones JavaScript puras del lado del cliente), a menudo se recomienda el uso de PKCE (Proof Key for Code Exchange) si el servidor de autorización lo admite, ya que estos clientes no pueden almacenar un secreto de forma segura. La documentación de Notion para integraciones públicas 12 especifica el uso de Autenticación Básica con CLIENT_ID:CLIENT_SECRET. El ejemplo de OAuth de Google en 13 utiliza un client_id en manifest.json para los servicios de Google, que pueden manejar la autenticación del cliente de manera diferente o estar destinados a flujos donde el secreto no viaja de la misma manera. Si Notion requiere estrictamente el secreto desde el lado del cliente para sus integraciones públicas y no ofrece PKCE para este tipo de integración, esto representa una compensación de seguridad conocida. La solución ideal, aunque añade complejidad de infraestructura, es un proxy de backend que mantenga el CLIENT_SECRET y realice el intercambio de token en nombre de la extensión. Si un backend está fuera del alcance, este plan debe proceder asumiendo que el script de fondo realiza la llamada, pero el riesgo debe ser claramente documentado y se deben implementar todas las mitigaciones posibles, como el uso de URIs de redirección estrictamente coincidentes y códigos de autorización de corta duración.
+E. Compartición de Configuraciones/Plantillas
+                     1. Mecanismo de Exportación:
+                     * En la página de opciones, se permitirá a los usuarios seleccionar una plantilla específica o el estado completo de la configuración de la extensión para exportar. Este estado incluiría todas las plantillas guardadas y, potencialmente, el estado de las conexiones (por ejemplo, si Notion está conectado), pero excluiría explícitamente cualquier token de API sensible o credenciales.
+                     * La configuración seleccionada se serializará a una cadena JSON utilizando JSON.stringify().
+                     * Para facilitar la descarga del archivo, se empleará una técnica común en JavaScript del lado del cliente, como la descrita en 23: se creará dinámicamente un elemento <a> en el DOM. El atributo href de este enlace se establecerá a una URL de objeto Blob que contenga los datos JSON (URL.createObjectURL(new Blob(, {type: "application/json"}))). Se establecerá el atributo download del enlace al nombre de archivo deseado (por ejemplo, configuracion_extension.json). Finalmente, se simulará un clic en este enlace mediante programación (link.click()), lo que activará la descarga del archivo en el navegador del usuario.
+                     2. Mecanismo de Importación:
+                     * En la página de opciones, se proporcionará un elemento <input type="file" accept=".json"> para que los usuarios puedan seleccionar un archivo de configuración/plantilla previamente exportado.23
+                     * Cuando el usuario seleccione un archivo, se utilizará la API FileReader, específicamente el método readAsText(), para leer el contenido del archivo JSON.
+                     * Una vez leído el contenido como texto, se analizará utilizando JSON.parse() para convertirlo de nuevo en un objeto JavaScript.
+                     * Es crucial validar la estructura y el contenido del objeto JSON importado contra el formato esperado para las configuraciones o plantillas de la extensión. Esto ayuda a prevenir errores o problemas de seguridad si el archivo está malformado o es malicioso.
+                     * Después de una validación exitosa, la extensión permitirá al usuario fusionar las configuraciones/plantillas importadas con las existentes o reemplazarlas, según la elección del usuario (por ejemplo, mediante un diálogo de confirmación).
+                     * Se proporcionará retroalimentación clara al usuario sobre el resultado del proceso de importación, ya sea éxito o fracaso (por ejemplo, indicando si el formato del archivo era inválido o si hubo conflictos).
+Al implementar la importación de configuraciones, es fundamental que la extensión sea cautelosa para no importar datos maliciosos. Aunque la estructura de plantilla propuesta no incluye directamente fragmentos de script ejecutables, es una preocupación general para cualquier funcionalidad que importe configuraciones externas. La validación rigurosa del JSON importado es clave para la seguridad. Es imperativo reiterar que la funcionalidad de compartir configuraciones no debe, bajo ninguna circunstancia, incluir la exportación o importación de tokens de API o cualquier otra credencial sensible.
+IV. Plan de Interfaz de Usuario (UI) y Experiencia de Usuario (UX)
+A. Interfaz Emergente (Popup - Acción del Navegador)
+                     1. Propósito: Proporcionar acceso rápido a las acciones principales de la extensión sin necesidad de que el usuario navegue fuera de la página web actual en la que se encuentra. El diseño debe ser eficiente y centrado en la tarea.
+                     2. Contenido:
+                     * Un menú desplegable o selector para elegir una plantilla de exportación activa (de las previamente creadas por el usuario).
+                     * Un botón principal, como "Extraer y Enviar a Notion", que utilizará la plantilla seleccionada para extraer datos de la página actual y enviarlos al destino configurado en la plantilla (inicialmente Notion).
+                     * Un indicador de estado visual conciso (por ejemplo, "Conectado a Notion", "Autenticación Requerida", "Inactivo", "Extrayendo datos...", "Exportación exitosa").
+                     * Un enlace o botón claramente visible para acceder a la "Página de Opciones" para configuraciones más detalladas.
+                     3. Principios de Diseño: El diseño de la popup debe ser minimalista, enfocado y no intrusivo.2 Se debe evitar abrumar al usuario con demasiadas opciones o información en este espacio limitado. La prioridad es la acción rápida y la retroalimentación clara. Se deben seguir las directrices de diseño de popups efectivas, como ofrecer valor inmediato y tener una salida clara y fácil.24
+B. Página de Opciones
+                     1. Propósito: Servir como el centro de control para todas las configuraciones y la gestión detallada de la extensión.
+                     2. Secciones: La página de opciones se organizará en secciones lógicas para facilitar la navegación y el uso:
+                     * Conexiones API:
+                     * Notion: Un botón "Conectar a Notion" que iniciará el flujo de autenticación OAuth 2.0 a través de chrome.identity. Una vez conectado, mostrará el estado de la conexión (por ejemplo, "Conectado como [Nombre de Usuario/Workspace de Notion]") y un botón "Desconectar" para revocar el acceso.
+                     * Futuros Servicios: Espacio reservado o una interfaz extensible para añadir y gestionar conexiones a otros servicios de salida en el futuro (por ejemplo, Google Sheets, Airtable).
+                     * Gestión de Plantillas:
+                     * Una lista de las plantillas de exportación existentes, mostrando su nombre y quizás las plataformas de origen/destino. Cada plantilla en la lista tendrá opciones para ver detalles, editar, eliminar o duplicar.
+                     * Un botón "Crear Nueva Plantilla" que llevará al usuario a un editor de plantillas.
+                     * Editor de Plantillas: Una interfaz dedicada para crear o modificar plantillas. Incluirá campos para:
+                     * Nombre de la plantilla.
+                     * Selección de plataforma de origen (LinkedIn/Instagram).
+                     * Selección de plataforma de destino (inicialmente Notion).
+                     * Detalles del destino (por ejemplo, un selector de bases de datos de Notion, poblado dinámicamente llamando a la API de Notion para listar las bases de datos accesibles).
+                     * Una interfaz de usuario dinámica para el mapeo de campos, permitiendo al usuario añadir pares de "campo de origen" (con su selector) y "campo de destino".
+                     * Compartición de Configuraciones:
+                     * Un botón "Exportar Configuración/Plantillas" para descargar un archivo JSON.
+                     * Un control de entrada de archivo "Importar Configuración/Plantillas" para cargar un archivo JSON.
+                     * Ajustes Generales: Preferencias generales de la extensión (por ejemplo, comportamiento de notificaciones, idioma si aplica).
+                     3. Principios de Diseño: La página de opciones debe tener una navegación clara e intuitiva. Los formularios deben ser fáciles de entender y usar, con etiquetas claras y, donde sea necesario, mensajes de ayuda o tooltips contextuales 24 para guiar al usuario, especialmente en las secciones más complejas como el editor de plantillas.
+C. Interfaz de Selección de Elementos (En la Página, a través de Scripts de Contenido)
+                     1. Activación: Este modo se activará contextualmente, por ejemplo, desde el editor de plantillas en la página de opciones (al hacer clic en un botón como "Seleccionar elemento para 'Nombre del Perfil'") o potencialmente a través de una opción en la popup como "Iniciar modo de selección para nueva plantilla".
+                     2. Interacción:
+                     * Una vez activado, el script de contenido superpondrá una interfaz visual ligera sobre el sitio web objetivo (LinkedIn o Instagram).
+                     * Los elementos de la página se resaltarán visualmente cuando el usuario pase el cursor sobre ellos, indicando que son seleccionables.
+                     * Al hacer clic en un elemento, el script de contenido capturará su selector (CSS o XPath) y, idealmente, mostrará una vista previa de los datos que se extraerían de ese elemento (por ejemplo, el texto, la URL del enlace o la URL de la imagen).
+                     * Se podría mostrar un pequeño panel o barra de herramientas no intrusiva en la página. Este panel permitiría al usuario:
+                     * Confirmar la selección del elemento actual.
+                     * Asignar el elemento seleccionado a un campo específico de la plantilla que se está editando (por ejemplo, "Este es el 'Nombre de la Empresa'").
+                     * Ver una lista de los campos ya mapeados para la plantilla actual.
+                     * Guardar la selección y continuar, o cancelar el modo de selección.
+                     3. Objetivo de UX: El objetivo principal de esta interfaz es hacer que el proceso de definir qué datos extraer sea lo más fácil e intuitivo posible, especialmente para usuarios no técnicos que no están familiarizados con la escritura manual de selectores CSS o XPath.
+El proceso de selección de elementos debe ser altamente interactivo. Los usuarios deben poder ver inmediatamente qué datos capturaría su selección. Si un selector generado automáticamente es demasiado amplio (captura más de lo deseado) o demasiado limitado (no captura nada o captura el elemento incorrecto), necesitan poder ajustar su selección o el selector resultante de manera sencilla. Por ejemplo, tras una selección inicial, la UI podría mostrar el selector generado y un fragmento de los datos extraídos. Podría ofrecer opciones como "seleccionar elemento padre", "seleccionar elemento hijo", o permitir al usuario elegir explícitamente qué atributo del elemento desea extraer (por ejemplo, el texto interno, un atributo href específico, la URL de una imagen de fondo). Esto hace que el proceso de selección sea más robusto y fácil de usar que un simple clic "a ciegas", y proporciona una capa amigable sobre los mecanismos de selección DOM/XPath subyacentes.7
+V. Consideraciones Técnicas y Mejores Prácticas
+A. Desglose de Permisos en manifest.json
+El archivo manifest.json es fundamental para declarar las capacidades y requisitos de la extensión. Se configurará de la siguiente manera, siguiendo el principio de menor privilegio 26:
+                     1. manifest_version: 3: Obligatorio para las nuevas extensiones, indica el uso de la plataforma Manifest V3.1
+                     2. name, version, description: Metadatos básicos que identifican y describen la extensión.1
+                     3. permissions: Array de cadenas que solicitan acceso a APIs específicas de Chrome Extensions:
+                     * storage: Necesario para utilizar la API chrome.storage (para almacenar configuraciones de usuario, plantillas de exportación y tokens de API).4
+                     * identity: Requerido para usar chrome.identity.launchWebAuthFlow, que es esencial para implementar el flujo de autenticación OAuth 2.0 con Notion.13
+                     * activeTab: (Opcional, a considerar) Este permiso otorga acceso temporal a la pestaña activa cuando el usuario invoca la extensión (por ejemplo, al hacer clic en su icono). Es menos intrusivo que solicitar permisos de host amplios desde el inicio. Sin embargo, podría ser insuficiente si se requiere una monitorización o interacción en segundo plano con sitios específicos sin una acción directa del usuario en el icono de la extensión.26 Para la funcionalidad principal de extracción iniciada por el usuario, activeTab podría combinarse con inyecciones de script programáticas si los content_scripts estáticos no cubren todos los casos.
+                     * notifications: Para utilizar la API chrome.notifications y mostrar notificaciones de escritorio al usuario sobre el estado de las operaciones.26
+                     * scripting: Requerido en MV3 para la inyección programática de scripts (chrome.scripting.executeScript) si no se utilizan declaraciones estáticas de content_scripts para todos los escenarios de inyección o si se necesita inyectar scripts en respuesta a eventos específicos no cubiertos por activeTab.
+                     4. host_permissions: Array de patrones de coincidencia de URL que especifican a qué sitios web la extensión necesita acceso extendido (por ejemplo, para inyectar scripts de contenido o realizar solicitudes fetch desde el service worker a estos dominios):
+                     * https://*.linkedin.com/*: Para permitir la inyección de scripts de contenido en todas las páginas de LinkedIn y subdominios, y para que el service worker pueda realizar solicitudes si fuera necesario (aunque las extracciones principales las harán los content scripts).26
+                     * https://*.instagram.com/*: Similar a LinkedIn, para Instagram.26
+                     * https://api.notion.com/*: Para permitir que el script de fondo (service worker) realice llamadas a la API de Notion para autenticación y envío de datos.26
+                     * Se podrían necesitar permisos adicionales si la extensión necesita interactuar con CDNs específicas o dominios relacionados para la carga de recursos o funcionalidades auxiliares.
+                     5. action: Define la interfaz de usuario emergente (popup) que se muestra cuando el usuario hace clic en el icono de la extensión en la barra de herramientas del navegador. Especificará el HTML, CSS y JS de la popup.1
+"action": { "default_popup": "popup.html", "default_icon": { "16": "images/icon16.png",... } }
+                     6. background: Define el service worker de la extensión, que maneja la lógica de fondo y los eventos.
+"background": { "service_worker": "background.js" }.1
+                     7. content_scripts: Define los scripts que se inyectan automáticamente en las páginas que coinciden con los patrones especificados.
+"content_scripts": [ { "matches": ["https://*.linkedin.com/*", "https://*.instagram.com/*"], "js": ["content_scraper.js"], "css": ["styles_content.css"] } ].1
+                     8. options_page o options_ui: Define la página de opciones de la extensión.
+"options_page": "options.html".2
+                     9. oauth2 (Consideración Específica):
+El campo oauth2 en el manifest.json, como se muestra en el ejemplo de 13 para la API de Google People, se utiliza típicamente cuando la extensión va a usar chrome.identity.getAuthToken para obtener tokens de acceso para servicios de Google. Para el flujo OAuth 2.0 personalizado de Notion, que se iniciará con chrome.identity.launchWebAuthFlow, no se utiliza directamente este campo oauth2 del manifiesto para especificar el client_id de Notion. En su lugar, el client_id de Notion se incluirá como parte de la URL de autorización que se construye y se pasa a launchWebAuthFlow. El permiso identity sigue siendo fundamental.
+Se debe adherir estrictamente al Principio de Menor Privilegio: la extensión solo solicitará los permisos que son absolutamente necesarios para su funcionamiento.26 Si algunas funcionalidades son opcionales y requieren permisos adicionales, se considerará el uso de optional_permissions y optional_host_permissions, permitiendo al usuario conceder estos permisos en tiempo de ejecución cuando intente utilizar dichas funcionalidades.
+Tabla V.A.1: Desglose de Permisos en manifest.json
+
+
+Permiso / Clave de Manifiesto
+	Justificación
+	Referencias
+	manifest_version: 3
+	Especifica el uso de la plataforma Manifest V3.
+	1
+	permissions: ["storage"]
+	Para almacenar datos de la extensión como plantillas, configuraciones de usuario y tokens de API.
+	4
+	permissions: ["identity"]
+	Para utilizar chrome.identity.launchWebAuthFlow para el flujo de autenticación OAuth 2.0 con Notion.
+	13
+	permissions: ["notifications"]
+	Para mostrar notificaciones de escritorio al usuario sobre el estado de las operaciones.
+	26
+	permissions: ["scripting"]
+	Necesario en MV3 para inyectar scripts programáticamente si se requiere más flexibilidad que los content_scripts estáticos.
+	
+
+	host_permissions: ["https://*.linkedin.com/*"]
+	Para inyectar scripts de contenido en páginas de LinkedIn y permitir la extracción de datos.
+	26
+	host_permissions: ["https://*.instagram.com/*"]
+	Para inyectar scripts de contenido en páginas de Instagram y permitir la extracción de datos.
+	26
+	host_permissions: ["https://api.notion.com/*"]
+	Para permitir que el service worker realice llamadas a la API de Notion (autenticación, envío de datos).
+	26
+	action
+	Define la UI emergente (popup) de la extensión.
+	1
+	background
+	Declara el service worker para la lógica de fondo.
+	1
+	content_scripts
+	Especifica los scripts a inyectar en las páginas de LinkedIn e Instagram.
+	1
+	options_page
+	Define la página HTML para las opciones de la extensión.
+	2
+	Esta tabla es fundamental para comprender la postura de seguridad y las capacidades de la extensión de un vistazo. Aborda directamente una parte central del desarrollo de extensiones y es esencial para la revisión y el mantenimiento.
+B. Manejo de Errores, Registro (Logging) y Notificaciones al Usuario
+                        1. Manejo Exhaustivo de Errores: Se implementarán bloques try...catch de manera sistemática en todo el código que involucre operaciones potencialmente falibles. Esto incluye, pero no se limita a, llamadas a APIs externas (Notion), manipulaciones del DOM en scripts de contenido, operaciones de lectura/escritura con chrome.storage, y la comunicación entre componentes de la extensión mediante el paso de mensajes. Los errores capturados se gestionarán de forma que se evite la interrupción abrupta de la extensión y, siempre que sea posible, se proporcionará información útil al usuario o se registrará para depuración.
+                        2. Notificaciones al Usuario (API chrome.notifications):
+Se utilizará la API chrome.notifications.create() para informar proactivamente a los usuarios sobre eventos importantes o el resultado de sus acciones 27:
+                           * Confirmación de una exportación exitosa a Notion.
+                           * Notificaciones relacionadas con la autenticación: necesidad de autenticarse, éxito de la autenticación, o fallo en la autenticación con una indicación del problema (si es posible identificarlo).
+                           * Errores mayores que impiden la funcionalidad principal de la extensión (por ejemplo, imposibilidad de conectar con la API de Notion debido a un problema de red o un token inválido).
+                           * La API chrome.notifications permite diferentes tipos de notificaciones, como basic (texto simple con icono), list (lista de ítems), y progress (para operaciones de larga duración).28 Se seleccionará el tipo más apropiado para cada situación.
+                           * Las notificaciones deben ser concisas, claras y, cuando sea pertinente, accionables (por ejemplo, un botón en la notificación que lleve al usuario a la página de opciones si se requiere una acción de su parte).
+                           3. Registro (Logging):
+                           * Durante la fase de desarrollo, se utilizarán ampliamente las funciones de la consola (console.log, console.warn, console.error) tanto en los scripts de fondo como en los scripts de contenido para facilitar la depuración y el seguimiento del flujo de la aplicación.
+                           * Es crucial evitar el registro de información sensible (como datos personales extraídos, tokens de API, o cualquier credencial) en las compilaciones de producción de la extensión. Se pueden utilizar indicadores de entorno o configuraciones de compilación para desactivar o filtrar los mensajes de registro detallados en producción.
+C. Persistencia y Almacenamiento de Datos (API chrome.storage)
+La API chrome.storage proporciona un mecanismo específico para que las extensiones almacenen datos de manera persistente. Se utilizarán sus diferentes áreas según las necesidades:
+                           1. chrome.storage.sync: 4
+                           * Esta área de almacenamiento es adecuada para preferencias de usuario, plantillas de exportación de tamaño pequeño y, potencialmente, tokens de OAuth si se desea que estén sincronizados entre los diferentes navegadores donde el usuario haya iniciado sesión con su cuenta de Chrome.
+                           * Los datos almacenados en sync se sincronizan automáticamente. Sin embargo, tiene cuotas más estrictas: aproximadamente 100KB de almacenamiento total para la extensión y 8KB por ítem individual.
+                           * La sincronización de tokens de API a través de chrome.storage.sync ofrece conveniencia al usuario pero también implica que si una de las instancias del navegador sincronizadas se ve comprometida, el token también lo estaría.
+                           2. chrome.storage.local: 4
+                           * Esta área es preferible para conjuntos de datos más grandes, un número mayor de plantillas de exportación, o datos que no necesitan ser sincronizados entre dispositivos (o donde la sincronización no es deseable por razones de seguridad, como podría ser el caso de los tokens de API).
+                           * Ofrece un límite de almacenamiento significativamente mayor (alrededor de 10MB por defecto, con la posibilidad de solicitar unlimitedStorage para más espacio).
+                           * Los datos almacenados en local persisten hasta que la extensión se desinstala o los datos se eliminan explícitamente.
+                           3. chrome.storage.session: 4
+                           * Esta área está diseñada para datos que solo deben persistir durante la sesión actual del navegador. Los datos se borran cuando se reinicia el navegador.
+                           * Podría ser útil para almacenar estados temporales relacionados con una tarea de extracción en curso, como datos extraídos parcialmente antes de ser enviados o guardados permanentemente.
+                           4. Estructura de Datos: Todos los datos almacenados utilizando chrome.storage deben ser serializables a JSON (por ejemplo, objetos, arrays, cadenas, números, booleanos).4
+                           5. Operaciones Asíncronas: Todas las operaciones de la API chrome.storage (get, set, remove, clear) son asíncronas. En Manifest V3, estas operaciones devuelven Promesas, lo que facilita el manejo del flujo asíncrono con async/await o .then().catch().4 El código de la extensión debe estar estructurado para manejar esta naturaleza asíncrona correctamente.
+La elección entre las áreas de almacenamiento sync, local y session no es arbitraria y tiene implicaciones tanto para la experiencia del usuario como para la seguridad. Para las plantillas y configuraciones de usuario, chrome.storage.sync puede ofrecer una mejor experiencia al mantener la consistencia entre dispositivos. Sin embargo, para los tokens de API, chrome.storage.local podría considerarse una opción más segura desde una perspectiva de aislamiento por dispositivo, aunque menos conveniente si el usuario cambia de máquina frecuentemente y espera que la extensión funcione sin reautenticación. Se debe tomar una decisión informada, equilibrando seguridad y UX, y esta decisión debe ser claramente documentada. Por ejemplo, las configuraciones de usuario y las plantillas podrían usar sync, mientras que los tokens de API podrían usar local con una indicación clara al usuario de que necesitarán reautenticarse en nuevos dispositivos. Los datos extraídos de gran volumen, antes de ser enviados a Notion, deberían usar local o session para evitar alcanzar las cuotas de sync.
+VI. Hoja de Ruta de Desarrollo de Alto Nivel e Hitos
+El desarrollo de la extensión se abordará en fases iterativas para permitir la entrega de valor incremental y la adaptación basada en los aprendizajes de cada fase.
+A. Fase 1: Configuración Central y Extracción Básica de LinkedIn
+                           1. Configuración del Manifiesto y Permisos: Establecer el archivo manifest.json con la estructura básica de MV3, permisos iniciales y declaración de componentes (service worker, popup).
+                           2. Script de Contenido Básico para LinkedIn: Desarrollar un script de contenido inicial capaz de extraer un dato simple de un perfil de LinkedIn (por ejemplo, el nombre del perfil) mediante un selector fijo.
+                           3. Interfaz de Usuario Emergente (Popup) Inicial: Crear una popup básica que permita al usuario activar la extracción en la página activa de LinkedIn.
+                           4. Script de Fondo para Recepción de Datos: Implementar la lógica en el service worker para recibir los datos extraídos del script de contenido y, por ejemplo, mostrarlos en la consola.
+B. Fase 2: Integración con la API de Notion
+                           1. Implementación del Flujo OAuth 2.0 de Notion: Integrar chrome.identity.launchWebAuthFlow para manejar la autenticación con Notion.
+                           2. Almacenamiento Seguro de Tokens: Guardar y gestionar de forma segura el token de acceso de Notion utilizando chrome.storage.
+                           3. Funcionalidad Básica de "Enviar a Notion": Desarrollar la capacidad de enviar el dato extraído (por ejemplo, el nombre del perfil de LinkedIn) para crear una nueva página o una entrada en una base de datos predefinida en Notion.
+                           4. Recuperación del Esquema de Base de Datos de Notion: Implementar la llamada a la API de Notion para obtener el esquema de una base de datos, sentando las bases para el mapeo de campos.
+C. Fase 3: Sistema de Plantillas
+                           1. Modelo de Datos para Plantillas: Definir la estructura JSON para los objetos de plantilla.
+                           2. Interfaz de Usuario en Página de Opciones para Plantillas: Desarrollar la UI en la página de opciones que permita al usuario crear, ver, y eliminar plantillas (inicialmente con mapeo estático de campos y selectores predefinidos o introducidos manualmente).
+                           3. Almacenamiento y Carga de Plantillas: Implementar la lógica para guardar y cargar plantillas utilizando chrome.storage.
+                           4. Modificación de Extracción y Exportación para Usar Plantillas: Refactorizar la lógica de extracción y exportación a Notion para que utilice las plantillas seleccionadas por el usuario.
+D. Fase 4: Extracción Avanzada y Soporte para Instagram
+                           1. Manejo Robusto de Contenido Dinámico para LinkedIn: Implementar las estrategias avanzadas (MutationObserver, sondeo, etc.) para una extracción fiable de datos de perfiles de LinkedIn complejos.
+                           2. Desarrollo de Script de Contenido y Lógica de Extracción para Instagram: Adaptar y/o crear nueva lógica de extracción específica para la estructura DOM y el comportamiento dinámico de Instagram.
+                           3. Mejora de la Interfaz de Selección de Elementos: Desarrollar la interfaz de usuario en la página (descrita en IV.C) para permitir a los usuarios seleccionar elementos visualmente y mapearlos a campos de plantilla.
+E. Fase 5: Compartición de Configuraciones y Extensibilidad
+                           1. Implementación de Importación/Exportación de Plantillas/Configuraciones: Añadir la funcionalidad para que los usuarios puedan guardar y cargar sus configuraciones de plantillas como archivos JSON.
+                           2. Refactorización del Módulo de Salida al Patrón Adaptador: Reestructurar la lógica de exportación a Notion para que utilice el patrón adaptador (IOutputAdapter), preparando el sistema para la fácil adición de futuros conectores de salida.
+F. Fase 6: Pruebas, Refinamiento y Documentación
+                           1. Pruebas Exhaustivas: Realizar pruebas funcionales, de usabilidad y de rendimiento en los navegadores objetivo (inicialmente Chrome, considerar Firefox u otros si el alcance se amplía).
+                           2. Mejoras de UX Basadas en Retroalimentación: Recopilar retroalimentación (potencialmente de usuarios beta) y refinar la interfaz y la experiencia de usuario.
+                           3. Refinamiento del Manejo de Errores y Notificaciones: Asegurar que todos los errores se manejen de manera elegante y que las notificaciones al usuario sean claras y útiles.
+                           4. Documentación Interna y de Usuario: Crear documentación técnica para el mantenimiento futuro y guías de usuario claras para las funcionalidades de la extensión.
+VII. Conclusión y Recomendaciones Estratégicas
+A. Resumen del Enfoque
+El plan técnico presentado detalla un enfoque robusto y por fases para el desarrollo de una extensión de navegador multifuncional. Las decisiones arquitectónicas clave, como la adopción de Manifest V3, el diseño modular centrado en un patrón de adaptadores para la extensibilidad de las salidas, y un fuerte énfasis en las prácticas de seguridad para la gestión de API y datos del usuario, sientan una base sólida para el proyecto. La estrategia de extracción de datos reconoce la complejidad de las plataformas objetivo y propone soluciones del lado del cliente para manejar contenido dinámico, mientras que el sistema de plantillas ofrece la flexibilidad necesaria para que los usuarios adapten la herramienta a sus flujos de trabajo específicos.
+B. Riesgos Clave y Mitigación
+Todo proyecto de software conlleva riesgos. Los más significativos para esta extensión y sus estrategias de mitigación propuestas son:
+                           1. Cambios en la Plataforma (LinkedIn/Instagram):
+                           * Riesgo: Las estructuras DOM de LinkedIn e Instagram pueden cambiar sin previo aviso debido a actualizaciones de las plataformas, lo que podría romper los selectores de datos y la funcionalidad de extracción.
+                           * Mitigación:
+                           * Fomentar el uso de estrategias de selección robustas (por ejemplo, basadas en atributos data-* si están disponibles, o combinaciones menos frágiles de selectores).
+                           * Implementar un sistema de monitorización (potencialmente manual al principio, o con pruebas automatizadas básicas) para detectar cuándo las extracciones fallan consistentemente.
+                           * Estar preparado para publicar actualizaciones rápidas de la extensión con selectores corregidos.
+                           * La interfaz de selección de elementos por el usuario, si es suficientemente flexible, podría permitir a los usuarios más técnicos reajustar algunos selectores ellos mismos, aunque esto no es una solución completa.
+                           2. Cambios en la API de Notion o Límites de Tasa:
+                           * Riesgo: La API de Notion podría introducir cambios incompatibles con versiones anteriores, modificar sus límites de tasa, o cambiar su política de acceso.
+                           * Mitigación:
+                           * Adherirse estrictamente a la versión de la API de Notion especificada en las cabeceras de las solicitudes y monitorizar los anuncios para desarrolladores de Notion.
+                           * Implementar un manejo de errores exhaustivo que detecte específicamente errores de límite de tasa (por ejemplo, HTTP 429) y otros errores comunes de la API, implementando reintentos con retroceso exponencial.
+                           * El diseño del adaptador de Notion debe ser lo suficientemente flexible para acomodar cambios menores en la API sin una reescritura completa.
+                           * Comunicar claramente al usuario si se alcanzan los límites de tasa o si hay problemas persistentes con la API de Notion.
+                           3. Seguridad del CLIENT_SECRET de Notion:
+                           * Riesgo: Como se discutió en la Sección III.D.1, si el CLIENT_SECRET de Notion se incluye en el script de fondo de la extensión para el intercambio de token OAuth, existe un riesgo inherente de que pueda ser extraído del paquete de la extensión.
+                           * Mitigación/Recomendación:
+                           * Recomendación Primaria: La solución más segura es utilizar un servidor proxy intermediario que gestione el CLIENT_SECRET y realice el intercambio del código de autorización por un token de acceso en nombre de la extensión. La extensión enviaría el código de autorización a este servidor seguro, y el servidor devolvería el token de acceso. Esto mantiene el CLIENT_SECRET fuera del código del lado del cliente por completo.
+                           * Si un Servidor Proxy no es Viable: Si la implementación de un componente de servidor está fuera del alcance del proyecto, se debe reconocer explícitamente este riesgo. Se deben implementar todas las demás medidas de seguridad posibles, como asegurar que la URI de redireccionamiento registrada en Notion sea lo más específica posible para la extensión, utilizar estados (state) en el flujo OAuth para prevenir CSRF, y confiar en la ofuscación y las protecciones del navegador para el código del script de fondo. Sin embargo, esto no elimina el riesgo por completo.
+C. Recomendaciones para el Desarrollo Futuro
+Una vez que la funcionalidad principal esté establecida y sea estable, se pueden considerar varias mejoras y expansiones:
+                           1. Añadir Más Destinos de Salida: Aprovechar la arquitectura de adaptadores para integrar otros servicios populares como Google Sheets, Airtable, Trello, u otras herramientas CRM/productividad, basándose en la demanda de los usuarios.
+                           2. Opciones Avanzadas de Transformación de Datos en Plantillas: Permitir a los usuarios definir transformaciones de datos más complejas dentro de las plantillas, quizás utilizando un lenguaje de scripting simple o una interfaz visual para encadenar operaciones (por ejemplo, dividir una cadena, realizar cálculos básicos, buscar y reemplazar con expresiones regulares).
+                           3. Funcionalidades de Colaboración para Plantillas: Más allá de la simple importación/exportación de archivos JSON, explorar mecanismos para que los equipos compartan y gestionen plantillas de forma colaborativa, quizás a través de un repositorio centralizado (lo que probablemente requeriría un componente de backend).
+                           4. Programación o Activación Automática de Extracciones: Para casos de uso específicos (y con mucho cuidado respecto a los términos de servicio de las plataformas), explorar la posibilidad de programar extracciones o activarlas basadas en ciertos eventos, siempre con el consentimiento y control explícito del usuario.
+                           5. Soporte para Más Plataformas de Origen: Expandir la capacidad de extracción a otras redes sociales o sitios web relevantes para los usuarios objetivo.
+D. Respaldo Final del Plan
+Este plan técnico proporciona una hoja de ruta detallada y considerada para el desarrollo de la extensión de navegador propuesta. Aborda los requisitos funcionales clave, los desafíos técnicos anticipados y las mejores prácticas de la industria. Siguiendo este plan, se puede construir una herramienta potente, segura y extensible que ofrezca un valor significativo a sus usuarios. Se recomienda proceder con el desarrollo por fases, validando cada etapa y adaptándose a los aprendizajes obtenidos.
+Works cited
+                           1. manifest.json - Mozilla | MDN, accessed on May 20, 2025, https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/manifest.json
+                           2. Architecture overview | Manifest V2 - Chrome for Developers, accessed on May 20, 2025, https://developer.chrome.com/docs/extensions/mv2/architecture-overview
+                           3. Understanding the Chrome Extension Architecture: Background Scripts and Content Scripts, accessed on May 20, 2025, https://reintech.io/blog/understanding-chrome-extension-architecture
+                           4. chrome.storage | API - Chrome for Developers, accessed on May 20, 2025, https://developer.chrome.com/docs/extensions/reference/api/storage
+                           5. Module Pattern - Patterns.dev, accessed on May 20, 2025, https://www.patterns.dev/vanilla/module-pattern/
+                           6. Top 8 Node.js Design Patterns in 2025 - GeeksforGeeks, accessed on May 20, 2025, https://www.geeksforgeeks.org/top-nodejs-design-patterns/
+                           7. Range: extractContents() method - Web APIs - MDN Web Docs, accessed on May 20, 2025, https://developer.mozilla.org/en-US/docs/Web/API/Range/extractContents
+                           8. Web Scraping using Xpath and Chrome Extension - Carpentry @ UCSB Library, accessed on May 20, 2025, https://carpentry.library.ucsb.edu/Love-Data-Week-Webscraping/aio
+                           9. Scrape Content from Dynamic Websites | GeeksforGeeks, accessed on May 20, 2025, https://www.geeksforgeeks.org/scrape-content-from-dynamic-websites/
+                           10. FREE AI-Powered BeautifulSoup Code Generator – Automate Web Scraping Instantly, accessed on May 20, 2025, https://workik.com/beautifulsoup-code-generator
+                           11. Web Scraping with JavaScript and Node.js (2025 Guide) - Scrapingdog, accessed on May 20, 2025, https://www.scrapingdog.com/blog/javascript-web-scraping/
+                           12. Authorization - Notion API, accessed on May 20, 2025, https://developers.notion.com/docs/authorization
+                           13. OAuth 2.0: authenticate users with Google | Chrome Extensions, accessed on May 20, 2025, https://developer.chrome.com/docs/extensions/how-to/integrate/oauth
+                           14. chrome.identity | API - Chrome for Developers, accessed on May 20, 2025, https://developer.chrome.com/docs/extensions/reference/api/identity
+                           15. Get Notion Database Structure AI Template - Relevance AI, accessed on May 20, 2025, https://relevanceai.com/templates/get-notion-database-structure
+                           16. Retrieve Database Schema with Notion (API Key) API on New Column from MySQL API, accessed on May 20, 2025, https://pipedream.com/integrations/retrieve-database-schema-with-notion-api-key-api-on-new-column-from-mysql-api-int_YEsRbz4x
+                           17. Create a page - Notion API, accessed on May 20, 2025, https://developers.notion.com/reference/post-page
+                           18. Can Notion API be used to generate database records from a template page?, accessed on May 20, 2025, https://community.latenode.com/t/can-notion-api-be-used-to-generate-database-records-from-a-template-page/8349
+                           19. Build your first integration - Notion API, accessed on May 20, 2025, https://developers.notion.com/docs/create-a-notion-integration
+                           20. Top 13 Templating Engines for JavaScript To Improve and Simplify Your Workflow 2023, accessed on May 20, 2025, https://colorlib.com/wp/top-templating-engines-for-javascript/
+                           21. Show HN: Mizu.js – Lightweight HTML templating library for any-side rendering | Hacker News, accessed on May 20, 2025, https://news.ycombinator.com/item?id=42464310
+                           22. Best practices for securely using API keys - Google Help, accessed on May 20, 2025, https://support.google.com/googleapi/answer/6310037?hl=en
+                           23. Using Google Chrome extensions to import/export JSON files? - Stack Overflow, accessed on May 20, 2025, https://stackoverflow.com/questions/38833178/using-google-chrome-extensions-to-import-export-json-files
+                           24. Popup UI: Best Practices & Design Inspiration For 2025 - Eleken, accessed on May 20, 2025, https://www.eleken.co/blog-posts/popup-ui
+                           25. Popup UX Design: Best Practices, Tips & Examples - OptiMonk, accessed on May 20, 2025, https://www.optimonk.com/ux-design-tips-popups-to-improve-user-experience/
+                           26. Declare permissions | Chrome Extensions | Chrome for Developers, accessed on May 20, 2025, https://developer.chrome.com/docs/extensions/develop/concepts/declare-permissions
+                           27. Desktop Notifications - Google Chrome Extensions, accessed on May 20, 2025, http://www.dre.vanderbilt.edu/~schmidt/android/android-4.0/external/chromium/chrome/common/extensions/docs/notifications.html
+                           28. chrome.notifications | API - Chrome for Developers, accessed on May 20, 2025, https://developer.chrome.com/docs/extensions/reference/api/notifications
