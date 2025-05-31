@@ -1,133 +1,100 @@
-// background/background.js (Service Worker)
+// background/background.js (Service Worker - Internal Token Version)
 
-// Constantes para la configuración de OAuth de Notion (Ejemplo - Reemplazar con tus valores reales)
-// IMPORTANTE: El CLIENT_SECRET NO debe estar aquí en una extensión de producción si es posible.
-// Considera un backend para el intercambio de tokens si la seguridad es primordial.
-// Para este ejemplo, se asume que se maneja aquí con el riesgo documentado.
-const NOTION_CLIENT_ID = 'TU_NOTION_CLIENT_ID'; // Reemplazar
-const NOTION_CLIENT_SECRET = 'TU_NOTION_CLIENT_SECRET'; // Reemplazar
-const NOTION_REDIRECT_URI = chrome.identity.getRedirectURL("oauth2"); // o una ruta personalizada como "callback"
+// No OAuth constants (NOTION_CLIENT_ID, NOTION_CLIENT_SECRET, NOTION_REDIRECT_URI) are needed.
+// The Internal Integration Token will be provided by the user and stored.
 
-// Almacenar el token de acceso de Notion de forma segura
-// chrome.storage.sync o chrome.storage.local
-
-// Evento de instalación: se puede usar para configurar valores iniciales
 chrome.runtime.onInstalled.addListener(() => {
-    console.log('Extensión de Extracción de Datos instalada.');
-    // Inicializar almacenamiento si es necesario
+    console.log('Extensión de Extracción de Datos (Internal Token Version) instalada.');
+    // Initialize storage if necessary
     chrome.storage.sync.get(['templates', 'notionConnection', 'userPreferences'], (data) => {
         if (!data.templates) {
             chrome.storage.sync.set({ templates: [] });
         }
-        if (!data.notionConnection) {
+        // Ensure notionConnection is an object; it will store the internal token
+        if (typeof data.notionConnection !== 'object' || data.notionConnection === null) {
             chrome.storage.sync.set({ notionConnection: {} });
         }
-        // Inicializar otras configuraciones
+        // Initialize other configurations
     });
 });
 
-// Manejador de mensajes desde otras partes de la extensión (popup, options, content scripts)
+// Message handler
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-    console.log('Mensaje recibido en background.js:', request);
+    console.log('Mensaje recibido en background.js (Internal Token Version):', request);
 
-    if (request.action === "connectNotion") {
-        // Iniciar flujo OAuth 2.0 para Notion
-        const authUrl = `https://api.notion.com/v1/oauth/authorize?client_id=${NOTION_CLIENT_ID}&redirect_uri=${encodeURIComponent(NOTION_REDIRECT_URI)}&response_type=code&owner=user`;
-        
-        chrome.identity.launchWebAuthFlow({
-            url: authUrl,
-            interactive: true
-        }, async (redirectUrl) => {
-            if (chrome.runtime.lastError || !redirectUrl) {
-                console.error("Error en launchWebAuthFlow:", chrome.runtime.lastError?.message);
-                sendResponse({ success: false, message: `Error de autenticación: ${chrome.runtime.lastError?.message || 'Flujo cancelado.'}` });
-                // Notificar a la página de opciones
-                chrome.runtime.sendMessage({ action: "notionConnectionUpdate", success: false, message: `Error de autenticación: ${chrome.runtime.lastError?.message || 'Flujo cancelado.'}`}).catch(e => console.debug(e));
-                return;
-            }
+    if (request.action === "connectNotionWithInternalToken") {
+        // This action is triggered from options.js when the user provides an internal token
+        const userProvidedToken = request.token;
 
-            const urlParams = new URLSearchParams(new URL(redirectUrl).search);
-            const code = urlParams.get('code');
+        if (!userProvidedToken || !userProvidedToken.startsWith('secret_')) {
+            sendResponse({ success: false, message: 'Token interno inválido o no proporcionado.' });
+            chrome.runtime.sendMessage({ action: "notionConnectionUpdate", success: false, message: 'Token interno inválido.' }).catch(e => console.debug("Error sending message or popup not open", e));
+            return false; // Not async in this path
+        }
 
-            if (code) {
-                // Intercambiar código por token de acceso
-                try {
-                    const tokenResponse = await fetch('https://api.notion.com/v1/oauth/token', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Basic ${btoa(`${NOTION_CLIENT_ID}:${NOTION_CLIENT_SECRET}`)}`
-                        },
-                        body: JSON.stringify({
-                            grant_type: 'authorization_code',
-                            code: code,
-                            redirect_uri: NOTION_REDIRECT_URI
-                        })
-                    });
-
-                    const tokenData = await tokenResponse.json();
-
-                    if (tokenData.access_token) {
-                        await chrome.storage.sync.set({ 
-                            notionConnection: {
-                                accessToken: tokenData.access_token,
-                                workspaceName: tokenData.workspace_name,
-                                workspaceIcon: tokenData.workspace_icon,
-                                botId: tokenData.bot_id
-                                // Podrías querer almacenar también tokenData.token_type, etc.
-                            }
-                        });
-                        console.log('Notion conectado exitosamente.');
-                        sendResponse({ success: true, message: 'Notion conectado exitosamente.' });
-                        // Notificar a la página de opciones y al popup
-                        chrome.runtime.sendMessage({ action: "notionConnectionUpdate", success: true, message: 'Conectado a Notion.'}).catch(e => console.debug(e));
-
-                    } else {
-                        console.error('Error al obtener token de acceso de Notion:', tokenData);
-                        sendResponse({ success: false, message: `Error al obtener token: ${tokenData.error || 'Respuesta inválida del servidor.'}` });
-                        chrome.runtime.sendMessage({ action: "notionConnectionUpdate", success: false, message: `Error al obtener token: ${tokenData.error || 'Respuesta inválida.'}`}).catch(e => console.debug(e));
+        // Validate the token by making a simple API call
+        (async () => {
+            try {
+                const validationResponse = await fetch('https://api.notion.com/v1/users/me', { // More specific endpoint for user info
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${userProvidedToken}`,
+                        'Notion-Version': '2022-06-28',
+                        'Content-Type': 'application/json'
                     }
-                } catch (error) {
-                    console.error('Error en el intercambio de token de Notion:', error);
-                    sendResponse({ success: false, message: `Error de red o servidor: ${error.message}` });
-                    chrome.runtime.sendMessage({ action: "notionConnectionUpdate", success: false, message: `Error de red: ${error.message}`}).catch(e => console.debug(e));
+                });
+
+                if (validationResponse.ok) {
+                    const userData = await validationResponse.json();
+                    // userData might contain bot.owner.workspace_name if the token has user capabilities,
+                    // but for a pure bot token, workspace name might not be directly available.
+                    // We'll use a placeholder or let the user define it.
+                    await chrome.storage.sync.set({
+                        notionConnection: {
+                            internalToken: userProvidedToken,
+                            connected: true,
+                            workspaceName: userData?.bot?.owner?.workspace_name || "Workspace (Token Interno)",
+                            botId: userData?.bot?.id // Store bot ID if available
+                        }
+                    });
+                    console.log('Notion conectado exitosamente con Token Interno.');
+                    sendResponse({ success: true, message: 'Notion conectado con Token Interno.' });
+                    chrome.runtime.sendMessage({ action: "notionConnectionUpdate", success: true, message: 'Conectado a Notion (Token Interno).' }).catch(e => console.debug("Error sending message or popup not open",e));
+                } else {
+                    const errorData = await validationResponse.json();
+                    console.error('Error al validar Token Interno de Notion:', errorData);
+                    sendResponse({ success: false, message: `Token Interno inválido: ${errorData.message || 'Error de API'}` });
+                    chrome.runtime.sendMessage({ action: "notionConnectionUpdate", success: false, message: `Token Interno inválido: ${errorData.message || 'Error de API'}` }).catch(e => console.debug("Error sending message or popup not open",e));
                 }
-            } else {
-                const error = urlParams.get('error');
-                console.error('OAuth denegado o error:', error);
-                sendResponse({ success: false, message: `OAuth denegado: ${error || 'Código no recibido.'}` });
-                chrome.runtime.sendMessage({ action: "notionConnectionUpdate", success: false, message: `OAuth denegado: ${error || 'Código no recibido.'}`}).catch(e => console.debug(e));
+            } catch (error) {
+                console.error('Error en la validación del Token Interno de Notion:', error);
+                sendResponse({ success: false, message: `Error de red o servidor: ${error.message}` });
+                chrome.runtime.sendMessage({ action: "notionConnectionUpdate", success: false, message: `Error de red: ${error.message}` }).catch(e => console.debug("Error sending message or popup not open",e));
             }
-        });
-        return true; // Indica que la respuesta se enviará asíncronamente
-    } 
+        })();
+        return true; // Indicates asynchronous response
+    }
     else if (request.action === "disconnectNotion") {
-        // Lógica para desconectar de Notion (principalmente borrar el token almacenado)
-        // Notion no tiene un endpoint de revocación de token OAuth estándar para integraciones públicas fácilmente accesible.
-        // La desconexión es principalmente local.
-        chrome.storage.sync.remove('notionConnection', () => {
+        // Clear the stored internal token
+        chrome.storage.sync.set({ notionConnection: {} }, () => { // Reset to empty object
             if (chrome.runtime.lastError) {
-                console.error("Error al borrar token de Notion:", chrome.runtime.lastError.message);
+                console.error("Error al borrar token interno de Notion:", chrome.runtime.lastError.message);
                 sendResponse({ success: false, message: "Error al desconectar." });
             } else {
-                console.log('Desconectado de Notion (token local borrado).');
+                console.log('Desconectado de Notion (token interno local borrado).');
                 sendResponse({ success: true, message: "Desconectado de Notion." });
-                 // Notificar a la página de opciones y al popup
-                chrome.runtime.sendMessage({ action: "notionConnectionUpdate", success: true, message: 'Desconectado de Notion.'}).catch(e => console.debug(e));
+                chrome.runtime.sendMessage({ action: "notionConnectionUpdate", success: true, message: 'Desconectado de Notion.' }).catch(e => console.debug("Error sending message or popup not open",e));
             }
         });
-        return true; // Asíncrono
+        return true; // Asynchronous
     }
     else if (request.action === "startExtraction") {
-        // 1. Obtener la plantilla y la conexión a Notion
-        // 2. Enviar mensaje al content_scraper.js para extraer datos según la plantilla
-        // 3. Recibir datos del content_scraper.js
-        // 4. Formatear datos y enviarlos a Notion usando el NotionAdapter
         (async () => {
             try {
                 const { notionConnection, templates } = await chrome.storage.sync.get(['notionConnection', 'templates']);
-                if (!notionConnection || !notionConnection.accessToken) {
-                    sendResponse({ success: false, message: "No conectado a Notion." });
+
+                if (!notionConnection || !notionConnection.internalToken || !notionConnection.connected) {
+                    sendResponse({ success: false, message: "No conectado a Notion con un token interno válido." });
                     return;
                 }
                 if (!templates || templates.length === 0) {
@@ -140,71 +107,57 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                     sendResponse({ success: false, message: "Plantilla no encontrada." });
                     return;
                 }
-                
-                // Enviar mensaje al script de contenido para extraer datos
+
                 const extractedData = await chrome.tabs.sendMessage(request.tabId, {
                     action: "extractDataFromPage",
                     template: template
                 });
 
                 if (extractedData && extractedData.success) {
-                    // Aquí iría la lógica para usar el NotionAdapter
-                    // Por ahora, simulamos el envío
                     console.log("Datos extraídos:", extractedData.data);
                     console.log("Enviando a Notion con plantilla:", template.name);
-                    
-                    // Ejemplo de cómo podrías llamar a una función del adaptador (que no existe aún completamente)
-                    // const notionAdapter = new NotionAdapter(notionConnection.accessToken);
-                    // const result = await notionAdapter.sendData(extractedData.data, template);
 
-                    // Simulación de llamada a Notion API
-                    // Este es un marcador de posición MUY simplificado.
-                    // La lógica real de `sendDataToNotion` sería mucho más compleja.
                     const notionResult = await sendDataToNotionAPI(
-                        notionConnection.accessToken,
+                        notionConnection.internalToken, // Using the internal token
                         template.targetDetails.notionDatabaseId,
-                        extractedData.data, // Los datos extraídos
-                        template.fieldMappings // El mapeo de la plantilla
+                        extractedData.data,
+                        template.fieldMappings
                     );
 
                     if (notionResult.success) {
-                        sendResponse({ success: true, message: "Datos enviados a Notion (simulado)." });
+                        sendResponse({ success: true, message: "Datos enviados a Notion." });
                         chrome.notifications.create({
                             type: 'basic',
-                            iconUrl: '../icons/icon48.png',
+                            iconUrl: chrome.runtime.getURL('icons/icon48.png'), // Use chrome.runtime.getURL for extension resources
                             title: 'Extracción Exitosa',
                             message: `Datos enviados a Notion usando la plantilla '${template.name}'.`
                         });
                     } else {
-                        sendResponse({ success: false, message: notionResult.message || "Error al enviar a Notion (simulado)." });
+                        sendResponse({ success: false, message: notionResult.message || "Error al enviar a Notion." });
                     }
-
                 } else {
                     sendResponse({ success: false, message: extractedData.message || "Error al extraer datos de la página." });
                 }
-
             } catch (error) {
                 console.error("Error durante la extracción/envío:", error);
                 sendResponse({ success: false, message: `Error: ${error.message}` });
             }
         })();
-        return true; // Asíncrono
+        return true; // Asynchronous
     }
     else if (request.action === "fetchNotionDatabases") {
         (async () => {
             try {
                 const { notionConnection } = await chrome.storage.sync.get(['notionConnection']);
-                if (!notionConnection || !notionConnection.accessToken) {
-                    sendResponse({ success: false, message: "No conectado a Notion." });
+                if (!notionConnection || !notionConnection.internalToken || !notionConnection.connected) {
+                    sendResponse({ success: false, message: "No conectado a Notion con un token interno válido." });
                     return;
                 }
 
-                // La API de Notion para listar bases de datos a las que una integración tiene acceso
-                // es a través del endpoint de búsqueda, filtrando por "database".
                 const response = await fetch('https://api.notion.com/v1/search', {
                     method: 'POST',
                     headers: {
-                        'Authorization': `Bearer ${notionConnection.accessToken}`,
+                        'Authorization': `Bearer ${notionConnection.internalToken}`, // Using the internal token
                         'Notion-Version': '2022-06-28',
                         'Content-Type': 'application/json'
                     },
@@ -213,7 +166,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                             value: 'database',
                             property: 'object'
                         }
-                        // Puedes añadir sort u otros parámetros si es necesario
                     })
                 });
 
@@ -228,7 +180,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                     id: db.id,
                     title: db.title && db.title.length > 0 ? db.title[0].plain_text : "Base de datos sin título"
                 }));
-                
+
                 sendResponse({ success: true, databases: databases });
 
             } catch (error) {
@@ -236,25 +188,21 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 sendResponse({ success: false, message: `Error al obtener bases de datos: ${error.message}` });
             }
         })();
-        return true; // Asíncrono
+        return true; // Asynchronous
     }
-    // Otros manejadores de mensajes...
-    return false; // Para respuestas síncronas o si no se maneja el mensaje
+    return false; // Default for unhandled actions
 });
 
 
-// Placeholder para la función que realmente interactúa con la API de Notion
-// Esta función necesitaría ser mucho más robusta y estar idealmente en notion_adapter.js
-async function sendDataToNotionAPI(accessToken, databaseId, extractedData, fieldMappings) {
-    // Construir el objeto 'properties' para la API de Notion
+async function sendDataToNotionAPI(token, databaseId, extractedData, fieldMappings) {
     const notionProperties = {};
 
     for (const mapping of fieldMappings) {
-        const sourceValue = extractedData[mapping.sourceFieldName]; // Asume que extractedData es un objeto con sourceFieldName como claves
+        const sourceValue = extractedData[mapping.sourceFieldName];
 
         if (sourceValue !== undefined && sourceValue !== null) {
-            // Aquí necesitas convertir sourceValue al formato que Notion espera para mapping.targetFieldNotionType
-            // Esto es una simplificación extrema.
+            // This switch handles the conversion of extracted data to Notion's expected property formats.
+            // It's crucial to expand this for all supported Notion property types.
             switch (mapping.targetFieldNotionType) {
                 case 'title':
                     notionProperties[mapping.targetFieldId] = { title: [{ text: { content: String(sourceValue) } }] };
@@ -266,30 +214,69 @@ async function sendDataToNotionAPI(accessToken, databaseId, extractedData, field
                     const num = parseFloat(sourceValue);
                     if (!isNaN(num)) {
                         notionProperties[mapping.targetFieldId] = { number: num };
+                    } else {
+                        console.warn(`Could not parse "${sourceValue}" as number for field ${mapping.targetFieldId}`);
                     }
                     break;
                 case 'url':
-                     if (String(sourceValue).startsWith('http')) {
+                     if (String(sourceValue).startsWith('http://') || String(sourceValue).startsWith('https://')) {
                         notionProperties[mapping.targetFieldId] = { url: String(sourceValue) };
+                    } else {
+                        console.warn(`Invalid URL format "${sourceValue}" for field ${mapping.targetFieldId}`);
                     }
                     break;
                 case 'email':
-                    // Añadir validación de email si es necesario
+                    // Basic email validation could be added here
                     notionProperties[mapping.targetFieldId] = { email: String(sourceValue) };
                     break;
                 case 'checkbox':
-                    notionProperties[mapping.targetFieldId] = { checkbox: Boolean(sourceValue) };
+                    // Convert common string representations of boolean to actual boolean
+                    let boolValue = false;
+                    if (typeof sourceValue === 'boolean') {
+                        boolValue = sourceValue;
+                    } else if (typeof sourceValue === 'string') {
+                        const lowerSourceValue = sourceValue.toLowerCase();
+                        if (lowerSourceValue === 'true' || lowerSourceValue === 'yes' || lowerSourceValue === '1') {
+                            boolValue = true;
+                        } else if (lowerSourceValue === 'false' || lowerSourceValue === 'no' || lowerSourceValue === '0') {
+                            boolValue = false;
+                        }
+                    }
+                    notionProperties[mapping.targetFieldId] = { checkbox: boolValue };
                     break;
-                // Añadir más tipos según la especificación de la API de Notion y los tipos de plantilla
-                // date, select, multi_select, files (más complejo), etc.
+                case 'select': // For 'select', Notion expects an object with 'name' or 'id' of the option
+                    if (sourceValue) { // Assuming sourceValue is the name of the select option
+                        notionProperties[mapping.targetFieldId] = { select: { name: String(sourceValue) } };
+                    }
+                    break;
+                case 'multi_select': // For 'multi_select', Notion expects an array of option objects
+                    if (Array.isArray(sourceValue)) {
+                        notionProperties[mapping.targetFieldId] = { multi_select: sourceValue.map(opt => ({ name: String(opt) })) };
+                    } else if (typeof sourceValue === 'string' && sourceValue.trim() !== '') { // Handle comma-separated string as multiple options
+                        notionProperties[mapping.targetFieldId] = { multi_select: sourceValue.split(',').map(opt => ({ name: String(opt).trim() })) };
+                    }
+                    break;
+                case 'date': // Notion expects an ISO 8601 date string, e.g., "2024-05-24" or with time "2024-05-24T12:00:00Z"
+                    // This assumes sourceValue is already in a compatible format or can be parsed.
+                    // More robust date parsing might be needed.
+                    if (sourceValue) {
+                         try {
+                            // Attempt to create a date object to validate, then reformat if necessary
+                            // For simplicity, assuming sourceValue is already a valid ISO string for Notion
+                            notionProperties[mapping.targetFieldId] = { date: { start: String(sourceValue) } };
+                         } catch (e) {
+                            console.warn(`Invalid date format "${sourceValue}" for field ${mapping.targetFieldId}`);
+                         }
+                    }
+                    break;
+                // Add cases for 'people', 'files', 'phone_number', etc. as needed.
                 default:
-                    console.warn(`Tipo de campo Notion no manejado en simulación: ${mapping.targetFieldNotionType} para ${mapping.targetFieldId}`);
-                    // Por defecto, intentar como rich_text si no se especifica
+                    console.warn(`Tipo de campo Notion no manejado: ${mapping.targetFieldNotionType} para ${mapping.targetFieldId}. Usando rich_text por defecto.`);
                     notionProperties[mapping.targetFieldId] = { rich_text: [{ text: { content: String(sourceValue) } }] };
             }
         }
     }
-    
+
     if (Object.keys(notionProperties).length === 0) {
         console.warn("No hay propiedades para enviar a Notion después del mapeo.");
         return { success: false, message: "No hay datos mapeados para enviar." };
@@ -300,13 +287,13 @@ async function sendDataToNotionAPI(accessToken, databaseId, extractedData, field
         properties: notionProperties
     };
 
-    console.log("Enviando a Notion (simulado):", JSON.stringify(body, null, 2));
+    console.log("Enviando a Notion:", JSON.stringify(body, null, 2));
 
     try {
         const response = await fetch('https://api.notion.com/v1/pages', {
             method: 'POST',
             headers: {
-                'Authorization': `Bearer ${accessToken}`,
+                'Authorization': `Bearer ${token}`, // Using the provided token (internal)
                 'Notion-Version': '2022-06-28',
                 'Content-Type': 'application/json'
             },
@@ -320,7 +307,7 @@ async function sendDataToNotionAPI(accessToken, databaseId, extractedData, field
             return { success: true, data: responseData };
         } else {
             console.error("Error al crear página en Notion:", responseData);
-            return { success: false, message: `Error de Notion: ${responseData.message || response.statusText}` };
+            return { success: false, message: `Error de Notion: ${responseData.message || response.statusText} (Code: ${responseData.code})` };
         }
     } catch (error) {
         console.error("Error de red al enviar a Notion:", error);
